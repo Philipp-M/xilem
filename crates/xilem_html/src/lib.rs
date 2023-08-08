@@ -11,10 +11,10 @@ mod app;
 mod class;
 mod context;
 mod diff;
-pub mod vecmap;
 mod element;
 mod event;
 mod one_of;
+pub mod vecmap;
 mod view;
 #[cfg(feature = "typed")]
 mod view_ext;

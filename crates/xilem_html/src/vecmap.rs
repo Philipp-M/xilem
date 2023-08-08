@@ -170,6 +170,36 @@ impl<K, V> VecMap<K, V> {
         }
     }
 
+    /// Removes a key from the map, returning the value at the key if the key
+    /// was previously in the map.
+    ///
+    /// The key may be any borrowed form of the map's key type, but the ordering
+    /// on the borrowed form *must* match the ordering on the key type.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    ///
+    /// ```
+    /// use xilem_html::vecmap::VecMap;
+    ///
+    /// let mut map = VecMap::default();
+    /// map.insert(1, "a");
+    /// assert_eq!(map.remove(&1), Some("a"));
+    /// assert_eq!(map.remove(&1), None);
+    /// ```
+    pub fn remove<Q: ?Sized>(&mut self, key: &Q) -> Option<V>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord,
+    {
+        // TODO not sure whether just a simple find is better here? Probably needs more benching
+        match self.0.binary_search_by_key(&key, |(k, _)| k.borrow()) {
+            Ok(pos) => Some(self.0.remove(pos).1),
+            Err(_) => None,
+        }
+    }
+
     /// Returns `true` if the map contains no elements.
     ///
     /// # Examples

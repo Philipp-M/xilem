@@ -60,20 +60,18 @@ fn todo_item(todo: &mut Todo, editing: bool) -> impl Element<Todo, TodoAction> {
                     None
                 }
             })
-            .on_input_with_options(
-                |state: &mut Todo, evt| {
-                    // TODO is there a less boilerplate but safe way to get to the value of the element?
-                    let Some(target) = evt.target() else {
-                        return;
-                    };
-                    let Some(element) = target.dyn_ref::<web_sys::HtmlInputElement>() else {
-                        return;
-                    };
-                    evt.prevent_default();
-                    state.title_editing = element.value();
-                },
-                EventListenerOptions::enable_prevent_default(),
-            )
+            .on_input(|state: &mut Todo, evt| {
+                // TODO is there a less boilerplate but safe way to get to the value of the element?
+                let Some(target) = evt.target() else {
+                    return;
+                };
+                let Some(element) = target.dyn_ref::<web_sys::HtmlInputElement>() else {
+                    return;
+                };
+                evt.prevent_default();
+                state.title_editing = element.value();
+            })
+            .passive(true)
             .on_blur(|_, _| TodoAction::CancelEditing),
     ))
     .attr("class", class)
@@ -196,20 +194,18 @@ fn app_logic(state: &mut AppState) -> impl View<AppState> {
                         state.create_todo();
                     }
                 })
-                .on_input_with_options(
-                    |state: &mut AppState, evt| {
-                        // TODO is there a less boilerplate but safe way to get to the value of the element?
-                        let Some(target) = evt.target() else {
-                            return;
-                        };
-                        let Some(element) = target.dyn_ref::<web_sys::HtmlInputElement>() else {
-                            return;
-                        };
-                        state.update_new_todo(&element.value());
-                        evt.prevent_default();
-                    },
-                    EventListenerOptions::enable_prevent_default(),
-                ),
+                .on_input(|state: &mut AppState, evt| {
+                    // TODO is there a less boilerplate but safe way to get to the value of the element?
+                    let Some(target) = evt.target() else {
+                        return;
+                    };
+                    let Some(element) = target.dyn_ref::<web_sys::HtmlInputElement>() else {
+                        return;
+                    };
+                    state.update_new_todo(&element.value());
+                    evt.prevent_default();
+                })
+                .passive(false),
         ))
         .attr("class", "header"),
         main,

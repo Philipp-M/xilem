@@ -1,10 +1,17 @@
 use wasm_bindgen::JsCast;
 
-use crate::{event::EventListener, interfaces::Element, Attr, OptionalAction};
+use crate::{
+    event::EventListener,
+    events::{impl_dom_interface_for_all_event_tys, impl_dom_interface_for_event_ty},
+    interfaces::Element,
+    Attr, OptionalAction,
+};
 
 macro_rules! dom_interface_trait_definitions {
     ($($dom_interface:ident : $super_dom_interface: ident $body: tt),*) => {
         $(
+            impl_dom_interface_for_all_event_tys!($dom_interface);
+
             pub trait $dom_interface<T, A = ()>: $super_dom_interface<T, A> $body
 
             impl<T, A, E: $dom_interface<T, A>> $dom_interface<T, A> for Attr<E> { }

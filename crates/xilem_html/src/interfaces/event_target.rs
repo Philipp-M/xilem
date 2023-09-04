@@ -3,7 +3,12 @@ use std::borrow::Cow;
 use gloo::events::EventListenerOptions;
 use wasm_bindgen::JsCast;
 
-use crate::{attribute::Attr, event::EventListener, OptionalAction, View, ViewMarker};
+use crate::{
+    attribute::Attr,
+    event::EventListener,
+    events::{impl_dom_interface_for_all_event_tys, impl_dom_interface_for_event_ty},
+    OptionalAction, View, ViewMarker,
+};
 
 use super::Element;
 
@@ -49,3 +54,5 @@ where
     OA: OptionalAction<A>,
 {
 }
+
+impl_dom_interface_for_all_event_tys!(EventTarget);

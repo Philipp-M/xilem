@@ -255,7 +255,7 @@ define_html_elements!(
     (Caption, caption, HtmlTableCaptionElement),
     (Col, col, HtmlTableColElement),
     (Colgroup, colgroup, HtmlTableColElement),
-    (Table, table, HtmlTableSectionElement),
+    (Table, table, HtmlTableElement),
     (Tbody, tbody, HtmlTableSectionElement),
     (Td, td, HtmlTableCellElement),
     (Tfoot, tfoot, HtmlTableSectionElement),

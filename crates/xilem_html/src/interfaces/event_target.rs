@@ -7,7 +7,7 @@ use crate::{
     attribute::Attr,
     event::EventListener,
     events::{impl_dom_interface_for_all_event_tys, impl_dom_interface_for_event_ty},
-    OptionalAction, View, ViewMarker,
+    Memoize, OptionalAction, View, ViewMarker,
 };
 
 use super::Element;
@@ -52,6 +52,14 @@ where
     E: EventTarget<T, A>,
     Ev: JsCast + 'static,
     OA: OptionalAction<A>,
+{
+}
+
+impl<T, A, D, E, F> EventTarget<T, A> for Memoize<D, F>
+where
+    D: PartialEq + 'static,
+    E: EventTarget<T, A>,
+    F: Fn(&D) -> E,
 {
 }
 

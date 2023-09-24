@@ -61,15 +61,14 @@ fn todo_item(todo: &mut Todo, editing: bool) -> impl Element<Todo, TodoAction> {
                 }
             })
             .on_input(|state: &mut Todo, evt| {
-                // TODO is there a less boilerplate but safe way to get to the value of the element?
-                let Some(target) = evt.target() else {
-                    return;
-                };
-                let Some(element) = target.dyn_ref::<web_sys::HtmlInputElement>() else {
-                    return;
-                };
-                evt.prevent_default();
-                state.title_editing = element.value();
+                // TODO There could/should be further checks, if this is indeed the right event (same DOM element)
+                if let Some(element) = evt
+                    .target()
+                    .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+                {
+                    evt.prevent_default();
+                    state.title_editing = element.value();
+                }
             })
             .passive(true)
             .on_blur(|_, _| TodoAction::CancelEditing),
@@ -195,15 +194,14 @@ fn app_logic(state: &mut AppState) -> impl View<AppState> {
                     }
                 })
                 .on_input(|state: &mut AppState, evt| {
-                    // TODO is there a less boilerplate but safe way to get to the value of the element?
-                    let Some(target) = evt.target() else {
-                        return;
-                    };
-                    let Some(element) = target.dyn_ref::<web_sys::HtmlInputElement>() else {
-                        return;
-                    };
-                    state.update_new_todo(&element.value());
-                    evt.prevent_default();
+                    // TODO There could/should be further checks, if this is indeed the right event (same DOM element)
+                    if let Some(element) = evt
+                        .target()
+                        .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+                    {
+                        state.update_new_todo(&element.value());
+                        evt.prevent_default();
+                    }
                 })
                 .passive(false),
         ))

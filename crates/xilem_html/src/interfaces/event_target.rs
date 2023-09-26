@@ -7,7 +7,7 @@ use crate::{
     attribute::Attr,
     event::EventListener,
     events::{impl_dom_interface_for_all_event_tys, impl_dom_interface_for_event_ty},
-    Memoize, OptionalAction, View, ViewMarker,
+    Cached, OptionalAction, View, ViewMarker,
 };
 
 use super::Element;
@@ -55,11 +55,11 @@ where
 {
 }
 
-impl<T, A, D, E, F> EventTarget<T, A> for Memoize<D, F>
+impl<T, A, D, E, VF, UF> EventTarget<T, A> for Cached<D, VF, UF>
 where
-    D: PartialEq + 'static,
     E: EventTarget<T, A>,
-    F: Fn(&D) -> E,
+    UF: Fn(&D, &D) -> bool + 'static,
+    VF: Fn(&D) -> E + 'static,
 {
 }
 

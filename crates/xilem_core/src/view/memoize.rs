@@ -37,7 +37,7 @@ macro_rules! generate_memoize_view {
 
         impl<T, A, D, V, F> $viewtrait<T, A> for $memoizeview<D, F>
         where
-            D: PartialEq $( $ss )* + 'static,
+            D: PartialEq $( $ss )*,
             V: $viewtrait<T, A>,
             F: Fn(&D) -> V $( $ss )*,
         {

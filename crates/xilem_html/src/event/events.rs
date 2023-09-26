@@ -374,4 +374,3 @@ event_definitions!(
     (OnWaiting, "waiting", Event),
     (OnWheel, "wheel", WheelEvent)
 );
-

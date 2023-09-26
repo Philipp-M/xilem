@@ -20,18 +20,8 @@ impl<T, A, E: Element<T, A>> View<T, A> for Attr<E> {
     type Element = E::Element;
 
     fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
-        let (id, state, element) = self.element.build(cx);
-        if let Some(value) = &self.value {
-            let _ = element
-                .as_node_ref()
-                .dyn_ref::<web_sys::Element>()
-                .expect(
-                    "The Attr view can only be used by Views,\
-                     whose element inherits from `web_sys::Element`",
-                )
-                .set_attribute(&self.name, &value.serialize());
-        }
-        (id, state, element)
+        cx.add_new_attribute_to_current_element(&self.name, &self.value);
+        self.element.build(cx)
     }
 
     fn rebuild(

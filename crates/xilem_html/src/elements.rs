@@ -58,6 +58,8 @@ where
     fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
         let el = cx.create_html_element(&self.name);
 
+        let attributes = cx.apply_attributes(&el);
+
         let mut child_elements = vec![];
         let (id, children_states) =
             cx.with_new_id(|cx| self.children.build(cx, &mut child_elements));
@@ -77,7 +79,7 @@ where
             children_states,
             child_elements,
             scratch: vec![],
-            attributes: Default::default(),
+            attributes,
         };
         (id, state, el)
     }
@@ -225,6 +227,8 @@ macro_rules! define_html_element {
             fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
                 let el = cx.create_html_element(self.node_name());
 
+                let attributes = cx.apply_attributes(&el);
+
                 let mut child_elements = vec![];
                 let (id, children_states) =
                     cx.with_new_id(|cx| self.0.build(cx, &mut child_elements));
@@ -243,7 +247,7 @@ macro_rules! define_html_element {
                     children_states,
                     child_elements,
                     scratch: vec![],
-                    attributes: Default::default(),
+                    attributes,
                 };
                 (id, state, el)
             }
@@ -258,7 +262,7 @@ macro_rules! define_html_element {
             ) -> ChangeFlags {
                 let mut changed = ChangeFlags::empty();
 
-                cx.apply_attribute_changes(element, &mut state.attributes);
+                changed |= cx.apply_attribute_changes(element, &mut state.attributes);
 
                 // update children
                 let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);

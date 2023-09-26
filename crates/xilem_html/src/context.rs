@@ -140,6 +140,18 @@ impl Cx {
         }
     }
 
+    pub(crate) fn apply_attributes(
+        &mut self,
+        element: &web_sys::Element,
+    ) -> VecMap<CowStr, AttributeValue> {
+        let mut attributes = VecMap::default();
+        std::mem::swap(&mut attributes, &mut self.current_element_attributes);
+        for (name, value) in attributes.iter() {
+            set_attribute(element, name, &value.serialize());
+        }
+        attributes
+    }
+
     pub(crate) fn apply_attribute_changes(
         &mut self,
         element: &web_sys::Element,

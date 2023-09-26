@@ -9,6 +9,7 @@ use wasm_bindgen::JsCast;
 
 mod app;
 mod class;
+mod cached;
 mod context;
 mod diff;
 mod element;
@@ -23,6 +24,7 @@ pub use xilem_core::MessageResult;
 
 pub use app::App;
 pub use class::class;
+pub use cached::{cached, memoize, s, Cached};
 pub use context::{ChangeFlags, Cx};
 #[cfg(feature = "typed")]
 pub use element::elements;
@@ -32,7 +34,7 @@ pub use event::events;
 pub use event::{on_event, Action, Event, OnEvent, OnEventState, OptionalAction};
 pub use one_of::{OneOf2, OneOf3, OneOf4, OneOf5, OneOf6, OneOf7, OneOf8};
 pub use view::{
-    memoize, s, Adapt, AdaptState, AdaptThunk, AnyView, Memoize, Pod, View, ViewMarker,
+    Adapt, AdaptState, AdaptThunk, AnyView, Pod, View, ViewMarker,
     ViewSequence,
 };
 #[cfg(feature = "typed")]

@@ -4,7 +4,7 @@ use crate::{
     event::EventListener,
     events::{impl_dom_interface_for_all_event_tys, impl_dom_interface_for_event_ty},
     interfaces::Element,
-    Attr, OptionalAction,
+    Attr, HtmlMediaElementPlay, OptionalAction,
 };
 
 macro_rules! dom_interface_trait_definitions {
@@ -74,7 +74,11 @@ dom_interface_trait_definitions!(
     HtmlLiElement : HtmlElement {},
     HtmlLinkElement : HtmlElement {},
     HtmlMapElement : HtmlElement {},
-    HtmlMediaElement : HtmlElement {},
+    HtmlMediaElement : HtmlElement {
+        fn play(self, value: bool) -> HtmlMediaElementPlay<Self> {
+            HtmlMediaElementPlay::new(self, value)
+        }
+    },
     HtmlMenuElement : HtmlElement {},
     HtmlMenuItemElement : HtmlElement {},
     HtmlMetaElement : HtmlElement {},

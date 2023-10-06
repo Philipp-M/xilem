@@ -4,8 +4,8 @@ use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult, VecSplice};
 
 use crate::{
-    vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, Pod, View, ViewMarker,
-    ViewSequence,
+    vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, DomAttr, HtmlMediaElementAttr,
+    Pod, View, ViewMarker, ViewSequence,
 };
 
 use super::interfaces::{Element, EventTarget, HtmlElement, Node};
@@ -18,6 +18,7 @@ type CowStr = std::borrow::Cow<'static, str>;
 pub struct ElementState<ViewSeqState> {
     pub(crate) children_states: ViewSeqState,
     pub(crate) attributes: VecMap<CowStr, AttributeValue>,
+    pub(crate) dom_attributes: Vec<DomAttr>,
     pub(crate) child_elements: Vec<Pod>,
     pub(crate) scratch: Vec<Pod>,
 }
@@ -59,6 +60,7 @@ where
         let el = cx.create_html_element(&self.name);
 
         let attributes = cx.apply_attributes(&el);
+        let dom_attributes = cx.apply_dom_attributes(&el, |attr, el| {});
 
         let mut child_elements = vec![];
         let (id, children_states) =
@@ -80,6 +82,7 @@ where
             child_elements,
             scratch: vec![],
             attributes,
+            dom_attributes: Vec::new(),
         };
         (id, state, el)
     }
@@ -212,9 +215,15 @@ macro_rules! impl_html_dom_interface {
 //      (should improve compile times and probably wasm binary size)
 macro_rules! define_html_element {
     (($ty_name:ident, $name:ident, $dom_interface:ident)) => {
-        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS));
+        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, {|_,_| {}}, {|_,_,_| ChangeFlags::empty()}));
+    };
+    (($ty_name:ident, $name:ident, $dom_interface:ident, {$($apply_fn:tt)*}, {$($changes_fn:tt)*})) => {
+        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, {$($apply_fn)*}, {$($changes_fn)*}));
     };
     (($ty_name:ident, $name:ident, $dom_interface:ident, $t:ident, $a: ident, $vs: ident)) => {
+        define_html_element!(($ty_name, $name, $dom_interface, $t, $a, $vs, {|_,_| {}}, {|_,_,_| ChangeFlags::empty()}));
+    };
+    (($ty_name:ident, $name:ident, $dom_interface:ident, $t:ident, $a: ident, $vs: ident, {$($apply_fn:tt)*}, {$($changes_fn:tt)*})) => {
         pub struct $ty_name<$t, $a = (), $vs = ()>($vs, PhantomData<fn() -> ($t, $a)>);
 
         impl<$t, $a, $vs> ViewMarker for $ty_name<$t, $a, $vs> {}
@@ -228,6 +237,8 @@ macro_rules! define_html_element {
                 let el = cx.create_html_element(self.node_name());
 
                 let attributes = cx.apply_attributes(&el);
+                // TODO should this even be generated for elements that don't have any dom attrs?
+                let dom_attributes = cx.apply_dom_attributes(&el, $($apply_fn)*);
 
                 let mut child_elements = vec![];
                 let (id, children_states) =
@@ -248,6 +259,7 @@ macro_rules! define_html_element {
                     child_elements,
                     scratch: vec![],
                     attributes,
+                    dom_attributes,
                 };
                 (id, state, el)
             }
@@ -263,6 +275,7 @@ macro_rules! define_html_element {
                 let mut changed = ChangeFlags::empty();
 
                 changed |= cx.apply_attribute_changes(element, &mut state.attributes);
+                changed |= cx.apply_dom_attribute_changes(&element, &mut state.dom_attributes, $($changes_fn)*);
 
                 // update children
                 let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
@@ -386,7 +399,42 @@ define_html_elements!(
     (Img, img, HtmlImageElement),
     (Map, map, HtmlMapElement),
     (Track, track, HtmlTrackElement),
-    (Video, video, HtmlVideoElement),
+    (
+        Video,
+        video,
+        HtmlVideoElement,
+        {
+            |el, attr| match attr {
+                DomAttr::HtmlMediaElement(HtmlMediaElementAttr::Play(play)) => {
+                    if *play {
+                        let _ = el
+                            .dyn_ref::<web_sys::HtmlMediaElement>()
+                            .unwrap_throw()
+                            .play()
+                            .unwrap_throw();
+                    }
+                }
+                _ => unreachable!(),
+            }
+        },
+        {
+            |el, old, new| match (old, new) {
+                (
+                    DomAttr::HtmlMediaElement(HtmlMediaElementAttr::Play(old_play)),
+                    DomAttr::HtmlMediaElement(HtmlMediaElementAttr::Play(new_play)),
+                ) if old_play != new_play => {
+                    let el = el.dyn_ref::<web_sys::HtmlMediaElement>().unwrap_throw();
+                    if *new_play {
+                        let _ = el.play().unwrap_throw();
+                    } else {
+                        el.pause().unwrap_throw();
+                    }
+                    ChangeFlags::OTHER_CHANGE
+                }
+                _ => ChangeFlags::empty(),
+            }
+        }
+    ),
     // embedded content
     (Embed, embed, HtmlEmbedElement),
     (Iframe, iframe, HtmlIFrameElement),

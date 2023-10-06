@@ -10,7 +10,7 @@ use crate::{
     app::AppRunner,
     diff::{diff_kv_iterables, Diff},
     vecmap::VecMap,
-    AttributeValue, Message, HTML_NS, SVG_NS,
+    AttributeValue, DomAttr, Message, HTML_NS, SVG_NS,
 };
 
 type CowStr = std::borrow::Cow<'static, str>;
@@ -46,6 +46,9 @@ pub struct Cx {
     document: Document,
     // TODO There's likely a cleaner more robust way to propagate the attributes to an element
     pub(crate) current_element_attributes: VecMap<CowStr, AttributeValue>,
+
+    // new idea...
+    pub(crate) current_element_dom_attributes: Vec<DomAttr>,
     app_ref: Option<Box<dyn AppRunner>>,
 }
 
@@ -69,6 +72,7 @@ impl Cx {
             document: crate::document(),
             app_ref: None,
             current_element_attributes: Default::default(),
+            current_element_dom_attributes: Vec::new(),
         }
     }
 
@@ -140,6 +144,17 @@ impl Cx {
         }
     }
 
+    pub(crate) fn add_new_dom_attribute_to_current_element(
+        &mut self,
+        // TODO function pointer or static impl Fn()?
+        is_defined: fn(&DomAttr) -> bool,
+        value: &DomAttr,
+    ) {
+        if !self.current_element_dom_attributes.iter().any(is_defined) {
+            self.current_element_dom_attributes.push(value.clone());
+        }
+    }
+
     pub(crate) fn apply_attributes(
         &mut self,
         element: &web_sys::Element,
@@ -150,6 +165,41 @@ impl Cx {
             set_attribute(element, name, &value.serialize());
         }
         attributes
+    }
+
+    pub(crate) fn apply_dom_attributes(
+        &mut self,
+        element: &web_sys::Element,
+        // TODO function pointer or static impl Fn()?
+        setter: fn(&web_sys::Element, &DomAttr),
+    ) -> Vec<DomAttr> {
+        let mut attributes = Vec::new();
+        std::mem::swap(&mut attributes, &mut self.current_element_dom_attributes);
+        for attr in attributes.iter() {
+            setter(element, attr);
+        }
+        attributes
+    }
+
+    pub(crate) fn apply_dom_attribute_changes(
+        &mut self,
+        element: &web_sys::Element,
+        attributes: &mut Vec<DomAttr>,
+        // TODO function pointer or static impl Fn()?
+        apply_change: fn(&web_sys::Element, &DomAttr, &DomAttr) -> ChangeFlags,
+    ) -> ChangeFlags {
+        let mut changed = ChangeFlags::empty();
+        // currently it's required that there's no changes the amount of attributes
+        assert!(attributes.len() == self.current_element_dom_attributes.len());
+        for (old, new) in attributes
+            .iter()
+            .zip(self.current_element_dom_attributes.iter())
+        {
+            changed |= apply_change(element, old, new);
+        }
+        std::mem::swap(attributes, &mut self.current_element_dom_attributes);
+        self.current_element_dom_attributes.clear();
+        changed
     }
 
     pub(crate) fn apply_attribute_changes(

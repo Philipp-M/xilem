@@ -4,8 +4,12 @@
 //! Integration with xilem_core. This instantiates the View and related
 //! traits for DOM node generation.
 
-use std::{any::Any, borrow::Cow, ops::Deref};
+use std::{any::Any, borrow::Cow, ops::Deref, rc::Rc};
 
+use wasm_bindgen::{
+    convert::{FromWasmAbi, IntoWasmAbi},
+    UnwrapThrowExt,
+};
 use xilem_core::{Id, MessageResult};
 
 use crate::{context::Cx, ChangeFlags};
@@ -19,14 +23,14 @@ mod sealed {
 /// This trait is implemented for types that implement `AsRef<web_sys::Node>`.
 /// It is an implementation detail.
 pub trait DomNode: sealed::Sealed + 'static {
-    fn into_pod(self) -> Pod;
+    fn into_pod(self, id: Id) -> Pod;
     fn as_node_ref(&self) -> &web_sys::Node;
 }
 
 impl<N: AsRef<web_sys::Node> + 'static> sealed::Sealed for N {}
 impl<N: AsRef<web_sys::Node> + 'static> DomNode for N {
-    fn into_pod(self) -> Pod {
-        Pod(Box::new(self))
+    fn into_pod(self, id: Id) -> Pod {
+        Pod(Rc::new(self), id)
     }
 
     fn as_node_ref(&self) -> &web_sys::Node {
@@ -54,8 +58,8 @@ impl<N: AsRef<web_sys::Node> + Any> AnyNode for N {
 
 impl sealed::Sealed for Box<dyn AnyNode> {}
 impl DomNode for Box<dyn AnyNode> {
-    fn into_pod(self) -> Pod {
-        Pod(self)
+    fn into_pod(self, id: Id) -> Pod {
+        Pod(self.into(), id)
     }
 
     fn as_node_ref(&self) -> &web_sys::Node {
@@ -68,21 +72,170 @@ impl DomNode for Box<dyn AnyNode> {
 /// This implementation may be overkill (it's possibly enough that everything is
 /// just a `web_sys::Element`), but does allow element types that contain other
 /// data, if needed.
-pub struct Pod(pub Box<dyn AnyNode>);
+#[derive(Clone)]
+pub struct Pod(pub Rc<dyn AnyNode>, Id);
 
 impl Pod {
-    fn new(node: impl DomNode) -> Self {
-        node.into_pod()
+    fn new(node: impl DomNode, id: Id) -> Self {
+        node.into_pod(id)
+    }
+
+    fn set_id(&mut self, id: Id) {
+        self.1 = id;
+    }
+
+    pub fn id(&self) -> Id {
+        self.1
     }
 
     fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
-        self.0.as_any_mut().downcast_mut()
+        unsafe {
+            Rc::get_mut_unchecked(&mut self.0)
+                .as_any_mut()
+                .downcast_mut()
+        }
     }
 
     fn mark(&mut self, flags: ChangeFlags) -> ChangeFlags {
         flags
     }
 }
+
+// struct Pods<'a>(&'a [Pod]);
+
+// impl<'a> Deref for Pods<'a> {
+//     type Target = [Pod];
+
+//     fn deref(&self) -> &Self::Target {
+//         self.0
+//     }
+// }
+
+// struct PodIdIter<'a>(usize, &'a [Pod]);
+
+// struct PodId(usize, Id);
+
+pub(crate) struct NodeIds(pub(crate) Vec<Pod>);
+
+impl<'a> imara_diff::intern::TokenSource for &'a NodeIds {
+    type Token = Id;
+
+    type Tokenizer = std::iter::Map<std::slice::Iter<'a, Pod>, fn(&'a Pod) -> Id>;
+
+    fn tokenize(&self) -> Self::Tokenizer {
+        self.0.iter().map(|n| n.1)
+    }
+
+    fn estimate_tokens(&self) -> u32 {
+        self.0.len() as u32
+    }
+}
+
+pub(crate) struct UpdateElement<'a> {
+    pub(crate) parent: web_sys::Element,
+    pub(crate) before: &'a NodeIds,
+    pub(crate) after: &'a NodeIds,
+}
+
+impl<'a> imara_diff::Sink for UpdateElement<'a> {
+    type Out = ();
+
+    fn process_change(&mut self, before: std::ops::Range<u32>, after: std::ops::Range<u32>) {
+        for n in &self.before.0[(before.start as usize)..(before.end as usize)] {
+            // let n = &unsafe { web_sys::Node::from_abi(*idx) };
+            // web_sys::console::log_1(&"removing".into());
+            // web_sys::console::log_1(&format!("removing: {}, index in arr: {}, end: {}", idx, before.start, before.end).into());
+            // web_sys::console::log_1(n);
+            self.parent.remove_child(n.0.as_node_ref()).unwrap_throw();
+        }
+        for n in &self.after.0[(after.start as usize)..(after.end as usize)] {
+            // let n = &unsafe { web_sys::Node::from_abi(*idx) };
+            // web_sys::console::log_1(&format!("adding: {}, index in arr: {}, end: {}", idx, after.start, after.end).into());
+            // web_sys::console::log_1(&"adding".into());
+            // web_sys::console::log_1(n);
+            self.parent.append_child(n.0.as_node_ref()).unwrap_throw();
+            // self.parent
+            //     .append_child(&unsafe { web_sys::Node::from_abi(*idx) })
+            //     .unwrap_throw();
+        }
+    }
+
+    fn finish(self) -> Self::Out {}
+}
+
+// // Well this is kinda hacky (workaround to get imara-diff working)...
+// impl Eq for PodId {}
+// impl PartialEq for PodId {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.1 == other.1
+//     }
+// }
+
+// impl std::hash::Hash for PodId {
+//     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+//         self.1.hash(state)
+//     }
+// }
+
+// impl<'a> PodIdIter<'a> {
+//     pub fn new(pods: &'a [Pod]) -> Self {
+//         Self(0, pods)
+//     }
+// }
+
+// impl<'a> Iterator for PodIdIter<'a> {
+//     type Item = PodId;
+
+//     fn next(&mut self) -> Option<Self::Item> {
+//         let item = self.1.get(self.0).map(|p| PodId(self.0, p.1));
+//         self.0 += 1;
+//         item
+//     }
+// }
+
+// impl<'a> imara_diff::intern::TokenSource for Pods<'a> {
+//     type Token = PodId;
+
+//     type Tokenizer = PodIdIter<'a>;
+
+//     fn tokenize(&self) -> Self::Tokenizer {
+//         // PodIdIter::new(self.0)
+//     }
+
+//     fn estimate_tokens(&self) -> u32 {
+//         self.0.len() as u32
+//     }
+// }
+
+// impl<'a> imara_diff::intern::TokenSource for PodIds {
+//     type Token = &'a PodId;
+
+//     type Tokenizer = std::slice::Iter<'a, PodId>;
+
+//     fn tokenize(&self) -> Self::Tokenizer {
+//         self.0.iter()
+//         // PodIdIter::new(self.0)
+//     }
+
+//     fn estimate_tokens(&self) -> u32 {
+//         self.0.len() as u32
+//     }
+// }
+
+// impl<'a> imara_diff::intern::TokenSource for &'a[ {
+//     type Token = u32;
+
+//     type Tokenizer = std::slice::Iter<'a, PodId>;
+
+//     fn tokenize(&self) -> Self::Tokenizer {
+//         self.0.iter()
+//         // PodIdIter::new(self.0)
+//     }
+
+//     fn estimate_tokens(&self) -> u32 {
+//         self.0.len() as u32
+//     }
+// }
 
 xilem_core::generate_view_trait! {View, DomNode, Cx, ChangeFlags;}
 xilem_core::generate_viewsequence_trait! {ViewSequence, View, ViewMarker, DomNode, Cx, ChangeFlags, Pod;}

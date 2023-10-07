@@ -1,3 +1,4 @@
+#![feature(get_mut_unchecked)]
 // Copyright 2023 the Druid Authors.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -5,7 +6,7 @@
 //!
 //! Run using `trunk serve`.
 
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{JsCast, UnwrapThrowExt};
 
 mod app;
 mod attribute;
@@ -18,6 +19,8 @@ mod event;
 pub mod interfaces;
 mod one_of;
 mod optional_action;
+mod hydrate;
+mod template;
 mod vecmap;
 mod view;
 mod view_ext;
@@ -30,7 +33,9 @@ pub use attribute_value::{AttributeValue, IntoAttributeValue};
 pub use cached::{cached, memoize, s, Cached};
 pub use context::{ChangeFlags, Cx};
 pub use event::{events, EventListener, EventListenerOptions, EventListenerState};
+pub use hydrate::{Hydrate, HydrateSequence};
 pub use one_of::{OneOf2, OneOf3, OneOf4, OneOf5, OneOf6, OneOf7, OneOf8};
+pub use template::{t, Templated};
 pub use optional_action::{Action, OptionalAction};
 pub use view::{Adapt, AdaptState, AdaptThunk, AnyView, Pod, View, ViewMarker, ViewSequence};
 pub use view_ext::ViewExt;
@@ -58,7 +63,7 @@ pub fn document_body() -> web_sys::HtmlElement {
 pub fn get_element_by_id(id: &str) -> web_sys::HtmlElement {
     document()
         .get_element_by_id(id)
-        .unwrap()
+        .unwrap_throw()
         .dyn_into()
         .unwrap()
 }

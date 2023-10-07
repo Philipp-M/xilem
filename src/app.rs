@@ -359,7 +359,7 @@ where
             } else {
                 let (id, state, root_widget) = response.view.build(&mut self.cx);
                 assert!(self.cx.is_empty(), "id path imbalance on build");
-                self.root_pod = Some(Pod::new(root_widget));
+                self.root_pod = Some(Pod::new(root_widget, id));
                 self.id = Some(id);
                 state
             };

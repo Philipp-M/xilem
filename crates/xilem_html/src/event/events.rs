@@ -1,4 +1,5 @@
 use super::{create_event_listener, EventListenerOptions, EventListenerState};
+use crate::Hydrate;
 use std::any::Any;
 
 use xilem_core::{Id, MessageResult};
@@ -96,6 +97,23 @@ where
             }
             _ => MessageResult::Stale(message),
         }
+    }
+}
+
+impl<T, A, C, ET, OA> Hydrate<T, A> for $ty_name<ET, C>
+where
+    OA: OptionalAction<A>,
+    C: Fn(&mut T, web_sys::$web_sys_ty) -> OA,
+    ET: EventTarget<T, A> + Hydrate<T, A>,
+{
+    // TODO basically identical as View::build, but instead using hydrate, so maybe macro?
+    fn hydrate(&self, cx: &mut Cx, element: web_sys::Node) -> (Id, Self::State, Self::Element) {
+        let (id, (element, state)) = cx.with_new_id(|cx| {
+            let (child_id, child_state, el) = self.target.hydrate(cx, element);
+            let listener = create_event_listener::<web_sys::$web_sys_ty>(el.as_node_ref(), $event_name, self.options, cx);
+            (el, EventListenerState { child_state, child_id, listener })
+        });
+        (id, state, element)
     }
 }
         )*

@@ -7,7 +7,8 @@ use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult};
 
 use crate::{
-    interfaces::EventTarget, view::DomNode, ChangeFlags, Cx, OptionalAction, View, ViewMarker,
+    interfaces::EventTarget, view::DomNode, ChangeFlags, Cx, Hydrate, OptionalAction, View,
+    ViewMarker,
 };
 
 /// Wraps a [`View`] `V` and attaches an event listener.
@@ -131,8 +132,8 @@ where
             let mut changed =
                 self.element
                     .rebuild(cx, &prev.element, id, &mut state.child_state, element);
-            if state.child_id != id {
-                state.child_id = id;
+            if state.child_id != *id {
+                state.child_id = *id;
                 changed |= ChangeFlags::OTHER_CHANGE;
             }
             // TODO check equality of prev and current element somehow
@@ -170,5 +171,33 @@ where
             }
             _ => MessageResult::Stale(message),
         }
+    }
+}
+
+impl<T, A, E, F, V, OA> Hydrate<T, A> for EventListener<V, E, F>
+where
+    OA: OptionalAction<A>,
+    F: Fn(&mut T, E) -> OA,
+    V: EventTarget<T, A> + Hydrate<T, A>,
+    E: JsCast + 'static,
+{
+    // TODO basically identical as View::build, but instead using hydrate, so maybe macro?
+    fn hydrate(&self, cx: &mut Cx, element: web_sys::Node) -> (Id, Self::State, Self::Element) {
+        let (id, (element, state)) = cx.with_new_id(|cx| {
+            let (child_id, child_state, element) = self.element.hydrate(cx, element);
+            let listener = create_event_listener::<E>(
+                element.as_node_ref(),
+                self.event.clone(),
+                self.options,
+                cx,
+            );
+            let state = EventListenerState {
+                child_state,
+                child_id,
+                listener,
+            };
+            (element, state)
+        });
+        (id, state, element)
     }
 }

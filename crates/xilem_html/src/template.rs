@@ -14,7 +14,7 @@ impl<T, A, E: HydrateSequence<T, A> + 'static> ViewSequence<T, A> for Templated<
         let type_id = TypeId::of::<Self>();
         if let Some(template) = cx.templates.get(&type_id) {
             let template = template.clone_node_with_deep(true).unwrap();
-            self.0.hydrate(cx, elements, &template.child_nodes(), 0)
+            self.0.hydrate(cx, elements, &mut template.first_child())
         } else {
             let state = self.0.build(cx, elements);
 

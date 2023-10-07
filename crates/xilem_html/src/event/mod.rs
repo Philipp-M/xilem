@@ -138,7 +138,7 @@ where
     OA: OptionalAction<A>,
 {
     // TODO basically identical as View::build, but instead using hydrate, so maybe macro?
-    fn hydrate(&self, cx: &mut Cx, element: &web_sys::Node) -> (Id, Self::State, Self::Element) {
+    fn hydrate(&self, cx: &mut Cx, element: web_sys::Node) -> (Id, Self::State, Self::Element) {
         let (id, child_state, element) = self.child.hydrate(cx, element);
         let thunk = cx.with_id(id, |cx| cx.message_thunk());
         let listener = EventListener::new_with_options(

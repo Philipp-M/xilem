@@ -120,7 +120,7 @@ macro_rules! event {
             fn hydrate(
                 &self,
                 cx: &mut crate::context::Cx,
-                element: &web_sys::Node,
+                element: web_sys::Node,
             ) -> (xilem_core::Id, Self::State, Self::Element) {
                 self.inner.hydrate(cx, element)
             }

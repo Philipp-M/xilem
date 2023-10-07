@@ -5,7 +5,7 @@
 //!
 //! Run using `trunk serve`.
 
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{JsCast, UnwrapThrowExt};
 
 mod app;
 mod class;
@@ -65,7 +65,7 @@ pub fn document_body() -> web_sys::HtmlElement {
 pub fn get_element_by_id(id: &str) -> web_sys::HtmlElement {
     document()
         .get_element_by_id(id)
-        .unwrap()
+        .unwrap_throw()
         .dyn_into()
         .unwrap()
 }

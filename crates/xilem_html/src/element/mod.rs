@@ -63,8 +63,9 @@ where
     Children: HydrateSequence<T, A>,
     El: JsCast + DomElement,
 {
-    fn hydrate(&self, cx: &mut Cx, element: &web_sys::Node) -> (Id, Self::State, Self::Element) {
-        let el: Self::Element = element.clone().dyn_into().unwrap_throw();
+    fn hydrate(&self, cx: &mut Cx, node: web_sys::Node) -> (Id, Self::State, Self::Element) {
+        let el: Self::Element = node.dyn_into().unwrap_throw();
+        // TODO this doesn't delete non existent attributes on the element...
         // TODO set attributes here? They should've already been set
         for (name, value) in &self.attributes {
             el.as_element_ref()
@@ -75,10 +76,10 @@ where
         // TODO is querying the DOM actually efficient here for determining Vec capacity, or should this just be an empty Vec?
         // Bench this (if it actually has a significant/measurable impact anyways)!
         let mut child_elements = Vec::new();
-        let node_list = el.as_element_ref().child_nodes();
+        let mut first_child = el.as_element_ref().first_child();
         let (id, child_states) = cx.with_new_id(|cx| {
             self.children
-                .hydrate(cx, &mut child_elements, &node_list, 0)
+                .hydrate(cx, &mut child_elements, &mut first_child)
         });
 
         // Set the id used internally to the `data-debugid` attribute.

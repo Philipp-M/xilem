@@ -168,9 +168,11 @@ impl Pod {
     ///
     /// In a widget hierarchy, each widget is wrapped in a `Pod`
     /// so it can participate in layout and event flow.
-    pub fn new(widget: impl Widget + 'static) -> Self {
+    pub fn new(widget: impl Widget + 'static, id: xilem_core::Id) -> Self {
         Self::new_from_box(Box::new(widget))
     }
+
+    pub fn set_id(&mut self, _id: xilem_core::Id) {}
 
     /// Create a new pod.
     ///

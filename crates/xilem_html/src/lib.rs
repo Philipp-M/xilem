@@ -1,3 +1,4 @@
+#![feature(get_mut_unchecked)]
 // Copyright 2023 the Druid Authors.
 // SPDX-License-Identifier: Apache-2.0
 

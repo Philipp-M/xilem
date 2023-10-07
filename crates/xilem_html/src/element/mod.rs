@@ -6,11 +6,15 @@ use crate::{
     context::{ChangeFlags, Cx},
     diff::{diff_kv_iterables, Diff},
     vecmap::VecMap,
-    view::{DomElement, Pod, View, ViewMarker, ViewSequence},
+    view::{DomElement, NodeIds, Pod, UpdateElement, View, ViewMarker, ViewSequence},
 };
 
+use imara_diff::Sink;
 use std::{borrow::Cow, fmt};
-use wasm_bindgen::{JsCast, UnwrapThrowExt};
+use wasm_bindgen::{
+    convert::{FromWasmAbi, IntoWasmAbi},
+    JsCast, UnwrapThrowExt,
+};
 use xilem_core::{Id, MessageResult, VecSplice};
 
 mod attribute_value;
@@ -53,6 +57,9 @@ impl<El, ViewSeq> Element<El, ViewSeq> {
 /// Stores handles to the child elements and any child state.
 pub struct ElementState<ViewSeqState> {
     child_states: ViewSeqState,
+    // TODO this is super hacky (to quickly test..), do this a little bit cleaner
+    prev_node_idxs: NodeIds,
+    current_node_idxs: NodeIds,
     child_elements: Vec<Pod>,
     scratch: Vec<Pod>,
 }
@@ -151,6 +158,8 @@ where
             child_states,
             child_elements,
             scratch: vec![],
+            prev_node_idxs: NodeIds(Vec::new()),
+            current_node_idxs: NodeIds(Vec::new()),
         };
         (id, state, el)
     }
@@ -200,21 +209,59 @@ where
         }
 
         // update children
+
+        // Let the hack begin...
+        state.prev_node_idxs.0.clear();
+        state.current_node_idxs.0.clear();
+        state
+            .prev_node_idxs
+            .0
+            .extend(state.child_elements.iter().cloned());
+        // .map(|p| p.0.as_node_ref().into_abi()),
+        // web_sys::console::log_1(&format!("before: {:?}", state.prev_node_idxs.0).into());
+        // let t = t.iter().map(|p| unsafe {web_sys::Node::from_abi(*p)}).collect::<Vec<_>>();
+        // let previous_ids = state.child_elements.iter().map(Pod::id).collect::<Vec<_>>();
         let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
         changed |= cx.with_id(*id, |cx| {
             self.children
                 .rebuild(cx, &prev.children, &mut state.child_states, &mut splice)
         });
         if changed.contains(ChangeFlags::STRUCTURE) {
+            // let current_ids = state.child_elements.iter().map(Pod::id).collect::<Vec<_>>();
+            state
+                .current_node_idxs
+                .0
+                .extend(state.child_elements.iter().cloned());
+            // state
+            //     .current_node_idxs
+            //     .0
+            //     .extend(state.child_elements.iter());
+            // .map(|p| p.0.as_node_ref().into_abi()),
+            let input = imara_diff::intern::InternedInput::new(
+                &state.prev_node_idxs,
+                &state.current_node_idxs,
+            );
+            let sink = UpdateElement {
+                parent: element.clone(),
+                before: &state.prev_node_idxs,
+                after: &state.current_node_idxs,
+            };
+
+            imara_diff::diff(imara_diff::Algorithm::Myers, &input, sink);
+            // web_sys::console::log_1(&format!("before: {:?}", state.prev_node_idxs.0).into());
+            // web_sys::console::log_1(&format!("after: {:?}", state.current_node_idxs.0).into());
+            // web_sys::console::log_1(&format!("diff removals: {:?}", diff.removals).into());
+            // web_sys::console::log_1(&format!("diff ins: {:?}", diff.insertions).into());
+            // tracing::debug!("diff: {diff:?}");
             // This is crude and will result in more DOM traffic than needed.
             // The right thing to do is diff the new state of the children id
             // vector against the old, and derive DOM mutations from that.
-            while let Some(child) = element.first_child() {
-                element.remove_child(&child).unwrap_throw();
-            }
-            for child in &state.child_elements {
-                element.append_child(child.0.as_node_ref()).unwrap_throw();
-            }
+            // while let Some(child) = element.first_child() {
+            //     element.remove_child(&child).unwrap_throw();
+            // }
+            // for child in &state.child_elements {
+            //     element.append_child(child.0.as_node_ref()).unwrap_throw();
+            // }
             changed.remove(ChangeFlags::STRUCTURE);
         }
         if let Some(after_update) = &self.after_update {
@@ -238,6 +285,8 @@ where
 
 #[cfg(feature = "typed")]
 fn set_attribute(element: &web_sys::Element, name: &str, value: &str) {
+    let e = element.clone();
+    // let h = e.hash();
     // we have to special-case `value` because setting the value using `set_attribute`
     // doesn't work after the value has been changed.
     if name == "value" {

@@ -102,7 +102,7 @@ macro_rules! generate_viewsequence_trait {
 
             fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>) -> Self::State {
                 let (id, state, element) = <V as $view<T, A>>::build(self, cx);
-                elements.push(<$pod>::new(element));
+                elements.push(<$pod>::new(element, id));
                 (state, id)
             }
 
@@ -123,6 +123,8 @@ macro_rules! generate_viewsequence_trait {
                     &mut state.0,
                     downcast,
                 );
+
+                el.set_id(state.1);
 
                 el.mark(flags)
             }

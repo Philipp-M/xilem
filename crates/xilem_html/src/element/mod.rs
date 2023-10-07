@@ -6,7 +6,8 @@ use crate::{
     context::{ChangeFlags, Cx},
     diff::{diff_kv_iterables, Diff},
     vecmap::VecMap,
-    view::{DomElement, Pod, View, ViewMarker, ViewSequence},
+    view::{DomElement, DomNode, Pod, View, ViewMarker, ViewSequence},
+    Hydrate, HydrateSequence,
 };
 
 use std::{borrow::Cow, fmt};
@@ -55,6 +56,48 @@ pub struct ElementState<ViewSeqState> {
     child_states: ViewSeqState,
     child_elements: Vec<Pod>,
     scratch: Vec<Pod>,
+}
+
+impl<T, A, El, Children> Hydrate<T, A> for Element<El, Children>
+where
+    Children: HydrateSequence<T, A>,
+    El: JsCast + DomElement,
+{
+    fn hydrate(&self, cx: &mut Cx, element: &web_sys::Node) -> (Id, Self::State, Self::Element) {
+        let el: Self::Element = element.clone().dyn_into().unwrap_throw();
+        // TODO set attributes here? They should've already been set
+        for (name, value) in &self.attributes {
+            el.as_element_ref()
+                .set_attribute(name, &value.serialize())
+                .unwrap_throw();
+        }
+
+        // TODO is querying the DOM actually efficient here for determining Vec capacity, or should this just be an empty Vec?
+        // Bench this (if it actually has a significant/measurable impact anyways)!
+        let mut child_elements = Vec::new();
+        let node_list = el.as_element_ref().child_nodes();
+        let (id, child_states) = cx.with_new_id(|cx| {
+            self.children
+                .hydrate(cx, &mut child_elements, &node_list, 0)
+        });
+
+        // Set the id used internally to the `data-debugid` attribute.
+        // This allows the user to see if an element has been re-created or only altered.
+        #[cfg(debug_assertions)]
+        el.as_element_ref()
+            .set_attribute("data-debugid", &id.to_raw().to_string())
+            .unwrap_throw();
+
+        if let Some(after_update) = &self.after_update {
+            (after_update)(&el);
+        }
+        let state = ElementState {
+            child_states,
+            child_elements,
+            scratch: vec![],
+        };
+        (id, state, el)
+    }
 }
 
 /// Create a new element view
@@ -202,18 +245,25 @@ where
         // update children
         let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
         changed |= cx.with_id(*id, |cx| {
+            // self.children.count()
+
             self.children
                 .rebuild(cx, &prev.children, &mut state.child_states, &mut splice)
         });
         if changed.contains(ChangeFlags::STRUCTURE) {
-            // This is crude and will result in more DOM traffic than needed.
-            // The right thing to do is diff the new state of the children id
-            // vector against the old, and derive DOM mutations from that.
-            while let Some(child) = element.first_child() {
-                element.remove_child(&child).unwrap_throw();
-            }
-            for child in &state.child_elements {
-                element.append_child(child.0.as_node_ref()).unwrap_throw();
+            // Optimization, in case all elements are removed at once
+            if state.child_elements.is_empty() {
+                element.set_text_content(None)
+            } else {
+                // This is crude and will result in more DOM traffic than needed.
+                // The right thing to do is diff the new state of the children id
+                // vector against the old, and derive DOM mutations from that.
+                while let Some(child) = element.first_child() {
+                    element.remove_child(&child).unwrap_throw();
+                }
+                for child in &state.child_elements {
+                    element.append_child(child.0.as_node_ref()).unwrap_throw();
+                }
             }
             changed.remove(ChangeFlags::STRUCTURE);
         }

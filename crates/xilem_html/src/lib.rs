@@ -13,7 +13,9 @@ mod context;
 mod diff;
 mod element;
 mod event;
+mod hydrate;
 mod one_of;
+mod template;
 mod vecmap;
 mod view;
 #[cfg(feature = "typed")]
@@ -30,7 +32,9 @@ pub use element::{element, AttributeValue, Element, ElementState, IntoAttributeV
 #[cfg(feature = "typed")]
 pub use event::events;
 pub use event::{on_event, Action, Event, OnEvent, OnEventState, OptionalAction};
+pub use hydrate::{Hydrate, HydrateSequence};
 pub use one_of::{OneOf2, OneOf3, OneOf4, OneOf5, OneOf6, OneOf7, OneOf8};
+pub use template::{t, Templated};
 pub use view::{
     memoize, s, Adapt, AdaptState, AdaptThunk, AnyView, Memoize, Pod, View, ViewMarker,
     ViewSequence,

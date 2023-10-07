@@ -55,6 +55,7 @@ version = "0.3.4"
 features = [
     "console",
     "Document",
+    "DocumentFragment",
     "Element",
     "Event",
     "HtmlElement",

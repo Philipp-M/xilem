@@ -101,6 +101,19 @@ macro_rules! element {
                 self.0.message(id_path, state, message, app_state)
             }
         }
+
+        impl<T_, A_, HydrateSeq> crate::Hydrate<T_, A_> for $ty_name<HydrateSeq>
+        where
+            HydrateSeq: crate::HydrateSequence<T_, A_>,
+        {
+            fn hydrate(
+                &self,
+                cx: &mut crate::context::Cx,
+                element: &web_sys::Node,
+            ) -> (xilem_core::Id, Self::State, Self::Element) {
+                self.0.hydrate(cx, element)
+            }
+        }
     };
 }
 

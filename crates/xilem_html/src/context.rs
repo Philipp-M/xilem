@@ -1,4 +1,7 @@
-use std::any::Any;
+use std::{
+    any::{Any, TypeId},
+    collections::BTreeMap,
+};
 
 use bitflags::bitflags;
 use wasm_bindgen::JsCast;
@@ -11,6 +14,7 @@ use crate::{app::AppRunner, Message, HTML_NS, SVG_NS};
 // Note: xilem has derive Clone here. Not sure.
 pub struct Cx {
     id_path: IdPath,
+    pub(crate) templates: BTreeMap<TypeId, web_sys::DocumentFragment>,
     document: Document,
     app_ref: Option<Box<dyn AppRunner>>,
 }
@@ -34,6 +38,7 @@ impl Cx {
             id_path: Vec::new(),
             document: crate::document(),
             app_ref: None,
+            templates: BTreeMap::new(),
         }
     }
 

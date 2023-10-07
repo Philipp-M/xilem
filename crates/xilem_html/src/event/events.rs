@@ -109,6 +109,22 @@ macro_rules! event {
                 self.inner.message(id_path, state, message, app_state)
             }
         }
+
+        impl<T, A, V, F, OA> crate::Hydrate<T, A> for $ty_name<T, A, V, F, OA>
+        where
+            V: crate::Hydrate<T, A>,
+            F: Fn(&mut T, &$crate::Event<$web_sys_ty, V::Element>) -> OA,
+            V::Element: 'static,
+            OA: $crate::event::OptionalAction<A>,
+        {
+            fn hydrate(
+                &self,
+                cx: &mut crate::context::Cx,
+                element: &web_sys::Node,
+            ) -> (xilem_core::Id, Self::State, Self::Element) {
+                self.inner.hydrate(cx, element)
+            }
+        }
     };
 }
 

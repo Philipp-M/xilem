@@ -13,6 +13,7 @@ use xilem_core::{Id, MessageResult};
 use crate::{
     context::{ChangeFlags, Cx},
     view::{DomNode, View, ViewMarker},
+    Hydrate,
 };
 
 /// Wraps a [`View`] `V` and attaches an event listener.
@@ -126,6 +127,40 @@ where
 // Attach an event listener to the child's element
 pub fn on_event<E, V, F>(name: &'static str, child: V, callback: F) -> OnEvent<E, V, F> {
     OnEvent::new(name, child, callback)
+}
+
+impl<T, A, E, F, V, OA> Hydrate<T, A> for OnEvent<E, V, F>
+where
+    F: Fn(&mut T, &Event<E, V::Element>) -> OA,
+    V: Hydrate<T, A>,
+    E: JsCast + 'static,
+    V::Element: 'static,
+    OA: OptionalAction<A>,
+{
+    // TODO basically identical as View::build, but instead using hydrate, so maybe macro?
+    fn hydrate(&self, cx: &mut Cx, element: &web_sys::Node) -> (Id, Self::State, Self::Element) {
+        let (id, child_state, element) = self.child.hydrate(cx, element);
+        let thunk = cx.with_id(id, |cx| cx.message_thunk());
+        let listener = EventListener::new_with_options(
+            element.as_node_ref(),
+            self.event,
+            EventListenerOptions {
+                passive: self.passive,
+                ..Default::default()
+            },
+            move |event: &web_sys::Event| {
+                let event = (*event).clone().dyn_into::<E>().unwrap_throw();
+                let event: Event<E, V::Element> = Event::new(event);
+                thunk.push_message(EventMsg { event });
+            },
+        );
+        // TODO add `remove_listener_with_callback` to clean up listener?
+        let state = OnEventState {
+            listener,
+            child_state,
+        };
+        (id, state, element)
+    }
 }
 
 /// State for the `OnEvent` view.

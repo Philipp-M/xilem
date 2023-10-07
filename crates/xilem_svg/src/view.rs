@@ -59,9 +59,10 @@ impl DomElement for Box<dyn AnyElement> {
 pub struct Pod(pub Box<dyn AnyElement>);
 
 impl Pod {
-    fn new(node: impl DomElement) -> Self {
+    fn new(node: impl DomElement, id: xilem_core::Id) -> Self {
         node.into_pod()
     }
+    fn set_id(&mut self, _id: xilem_core::Id) {}
 
     fn downcast_mut<T: 'static>(&mut self) -> Option<&mut T> {
         self.0.as_any_mut().downcast_mut()

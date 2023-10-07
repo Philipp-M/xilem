@@ -31,7 +31,7 @@ where
         let n = cur_node.take().unwrap_throw();
         *cur_node = n.next_sibling();
         let (id, state, element) = <V as Hydrate<T, A>>::hydrate(self, cx, n);
-        elements.push(element.into_pod());
+        elements.push(element.into_pod(id));
         (state, id)
     }
 }

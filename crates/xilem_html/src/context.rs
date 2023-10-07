@@ -9,7 +9,7 @@ use web_sys::Document;
 
 use xilem_core::{Id, IdPath};
 
-use crate::{app::AppRunner, Message, HTML_NS, SVG_NS};
+use crate::{app::AppRunner, Message, HTML_NS, SVG_NS, view::NodeIds};
 
 // Note: xilem has derive Clone here. Not sure.
 pub struct Cx {

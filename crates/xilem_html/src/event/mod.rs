@@ -131,6 +131,10 @@ where
             let mut changed =
                 self.element
                     .rebuild(cx, &prev.element, id, &mut state.child_state, element);
+            if state.child_id != id {
+                state.child_id = id;
+                changed |= ChangeFlags::OTHER_CHANGE;
+            }
             // TODO check equality of prev and current element somehow
             if prev.event != self.event || changed.contains(ChangeFlags::STRUCTURE) {
                 state.listener = create_event_listener::<E>(

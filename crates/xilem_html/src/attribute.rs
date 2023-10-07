@@ -1,9 +1,8 @@
 use std::borrow::Cow;
 
-use wasm_bindgen::JsCast;
 use xilem_core::{Id, MessageResult};
 
-use crate::{view::DomNode, AttributeValue, ChangeFlags, Cx, View, ViewMarker};
+use crate::{AttributeValue, ChangeFlags, Cx, View, ViewMarker};
 
 use super::interfaces::Element;
 

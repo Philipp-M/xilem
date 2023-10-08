@@ -4,8 +4,9 @@ use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult, VecSplice};
 
 use crate::{
-    vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, Hydrate, HydrateSequence, Pod,
-    View, ViewMarker, ViewSequence,
+    vecmap::VecMap,
+    view::{NodeIds, UpdateElement},
+    AttributeValue, ChangeFlags, Cx, Hydrate, HydrateSequence, Pod, View, ViewMarker, ViewSequence,
 };
 
 use super::interfaces::{Element, EventTarget, HtmlElement, Node};
@@ -20,6 +21,8 @@ pub struct ElementState<ViewSeqState> {
     pub(crate) attributes: VecMap<CowStr, AttributeValue>,
     pub(crate) child_elements: Vec<Pod>,
     pub(crate) scratch: Vec<Pod>,
+    prev_node_idxs: NodeIds,
+    current_node_idxs: NodeIds,
 }
 
 // TODO something like the `after_update` of the former `Element` view (likely as a wrapper view instead)
@@ -58,7 +61,7 @@ where
     fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
         let el = cx.create_html_element(&self.name);
 
-        let attributes = cx.apply_attributes(&el);
+        let attributes = cx.apply_attributes(&el, false);
 
         let mut child_elements = vec![];
         let (id, children_states) =
@@ -80,6 +83,8 @@ where
             child_elements,
             scratch: vec![],
             attributes,
+            prev_node_idxs: NodeIds(Vec::new()),
+            current_node_idxs: NodeIds(Vec::new()),
         };
         (id, state, el)
     }
@@ -115,20 +120,35 @@ where
         cx.apply_attribute_changes(element, &mut state.attributes);
 
         // update children
+
+        // Let the hack begin...
+        state.prev_node_idxs.0.clear();
+        state.current_node_idxs.0.clear();
+        let els = state.child_elements.iter().cloned();
+        state.prev_node_idxs.0.extend(els);
+
         let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
         changed |= cx.with_id(*id, |cx| {
             self.children
                 .rebuild(cx, &prev.children, &mut state.children_states, &mut splice)
         });
         if changed.contains(ChangeFlags::STRUCTURE) {
-            // This is crude and will result in more DOM traffic than needed.
-            // The right thing to do is diff the new state of the children id
-            // vector against the old, and derive DOM mutations from that.
-            while let Some(child) = element.first_child() {
-                element.remove_child(&child).unwrap_throw();
-            }
-            for child in &state.child_elements {
-                element.append_child(child.0.as_node_ref()).unwrap_throw();
+            if state.child_elements.is_empty() {
+                element.set_text_content(None)
+            } else {
+                let els = state.child_elements.iter().cloned();
+                state.current_node_idxs.0.extend(els);
+                let input = imara_diff::intern::InternedInput::new(
+                    &state.prev_node_idxs,
+                    &state.current_node_idxs,
+                );
+                let sink = UpdateElement {
+                    parent: element,
+                    before: &state.prev_node_idxs,
+                    after: &state.current_node_idxs,
+                };
+
+                imara_diff::diff(imara_diff::Algorithm::Myers, &input, sink);
             }
             changed.remove(ChangeFlags::STRUCTURE);
         }
@@ -154,7 +174,7 @@ where
     fn hydrate(&self, cx: &mut Cx, node: web_sys::Node) -> (Id, Self::State, Self::Element) {
         let el: Self::Element = node.dyn_into().unwrap_throw();
 
-        let attributes = cx.apply_attributes(&el);
+        let attributes = cx.apply_attributes(&el, true);
 
         let mut child_elements = vec![];
         let mut first_child = el.first_child();
@@ -174,6 +194,8 @@ where
             child_elements,
             scratch: vec![],
             attributes,
+            prev_node_idxs: NodeIds(Vec::new()),
+            current_node_idxs: NodeIds(Vec::new()),
         };
         (id, state, el)
     }
@@ -259,7 +281,7 @@ macro_rules! define_html_element {
             fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
                 let el = cx.create_html_element(self.node_name());
 
-                let attributes = cx.apply_attributes(&el);
+                let attributes = cx.apply_attributes(&el, false);
 
                 let mut child_elements = vec![];
                 let (id, children_states) =
@@ -280,6 +302,8 @@ macro_rules! define_html_element {
                     child_elements,
                     scratch: vec![],
                     attributes,
+                    prev_node_idxs: NodeIds(Vec::new()),
+                    current_node_idxs: NodeIds(Vec::new()),
                 };
                 (id, state, el)
             }
@@ -297,20 +321,35 @@ macro_rules! define_html_element {
                 changed |= cx.apply_attribute_changes(element, &mut state.attributes);
 
                 // update children
+
+                // Let the hack begin...
+                state.prev_node_idxs.0.clear();
+                state.current_node_idxs.0.clear();
+                let els = state.child_elements.iter().cloned();
+                state.prev_node_idxs.0.extend(els);
+
                 let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
                 changed |= cx.with_id(*id, |cx| {
                     self.0
                         .rebuild(cx, &prev.0, &mut state.children_states, &mut splice)
                 });
                 if changed.contains(ChangeFlags::STRUCTURE) {
-                    // This is crude and will result in more DOM traffic than needed.
-                    // The right thing to do is diff the new state of the children id
-                    // vector against the old, and derive DOM mutations from that.
-                    while let Some(child) = element.first_child() {
-                        element.remove_child(&child).unwrap_throw();
-                    }
-                    for child in &state.child_elements {
-                        element.append_child(child.0.as_node_ref()).unwrap_throw();
+                    if state.child_elements.is_empty() {
+                        element.set_text_content(None)
+                    } else {
+                        let els = state.child_elements.iter().cloned();
+                        state.current_node_idxs.0.extend(els);
+                        let input = imara_diff::intern::InternedInput::new(
+                            &state.prev_node_idxs,
+                            &state.current_node_idxs,
+                        );
+                        let sink = UpdateElement {
+                            parent: element,
+                            before: &state.prev_node_idxs,
+                            after: &state.current_node_idxs,
+                        };
+
+                        imara_diff::diff(imara_diff::Algorithm::Myers, &input, sink);
                     }
                     changed.remove(ChangeFlags::STRUCTURE);
                 }
@@ -337,16 +376,12 @@ macro_rules! define_html_element {
             ) -> (Id, Self::State, Self::Element) {
                 let el: Self::Element = node.dyn_into().unwrap_throw();
 
-                let attributes = cx.apply_attributes(&el);
+                let attributes = cx.apply_attributes(&el, true);
 
                 let mut child_elements = vec![];
                 let mut first_child = el.first_child();
                 let (id, children_states) =
                     cx.with_new_id(|cx| self.0.hydrate(cx, &mut child_elements, &mut first_child));
-
-                for child in &child_elements {
-                    el.append_child(child.0.as_node_ref()).unwrap_throw();
-                }
 
                 // Set the id used internally to the `data-debugid` attribute.
                 // This allows the user to see if an element has been re-created or only altered.
@@ -360,6 +395,8 @@ macro_rules! define_html_element {
                     child_elements,
                     scratch: vec![],
                     attributes,
+                    prev_node_idxs: NodeIds(Vec::new()),
+                    current_node_idxs: NodeIds(Vec::new()),
                 };
                 (id, state, el)
             }

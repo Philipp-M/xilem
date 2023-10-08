@@ -15,7 +15,7 @@ xilem_core.workspace = true
 kurbo.workspace = true
 bitflags = "2"
 wasm-bindgen = "0.2.87"
-imara-diff = { version = "0.1.5", path = "../../../../imara-diff" }
+imara-diff = "0.1.5"
 getrandom = { version = "0.2", features = ["js"] }
 log = "0.4.19"
 gloo = { version = "0.8.1", default-features = false, features = ["events", "utils"] }

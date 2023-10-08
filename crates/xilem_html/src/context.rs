@@ -1,6 +1,6 @@
 use std::{
     any::{Any, TypeId},
-    collections::BTreeMap,
+    rc::Rc,
 };
 
 use bitflags::bitflags;
@@ -13,7 +13,6 @@ use crate::{
     app::AppRunner,
     diff::{diff_kv_iterables, Diff},
     vecmap::VecMap,
-    view::NodeIds,
     AttributeValue, Message, HTML_NS, SVG_NS,
 };
 
@@ -47,7 +46,7 @@ fn remove_attribute(element: &web_sys::Element, name: &str) {
 // Note: xilem has derive Clone here. Not sure.
 pub struct Cx {
     id_path: IdPath,
-    pub(crate) templates: BTreeMap<TypeId, web_sys::DocumentFragment>,
+    pub(crate) templates: VecMap<TypeId, (web_sys::Node, Rc<dyn Any>)>,
     document: Document,
     // TODO There's likely a cleaner more robust way to propagate the attributes to an element
     pub(crate) current_element_attributes: VecMap<CowStr, AttributeValue>,
@@ -74,7 +73,7 @@ impl Cx {
             document: crate::document(),
             app_ref: None,
             current_element_attributes: Default::default(),
-            templates: BTreeMap::new(),
+            templates: VecMap::default(),
         }
     }
 
@@ -149,11 +148,14 @@ impl Cx {
     pub(crate) fn apply_attributes(
         &mut self,
         element: &web_sys::Element,
+        hydrate: bool,
     ) -> VecMap<CowStr, AttributeValue> {
         let mut attributes = VecMap::default();
         std::mem::swap(&mut attributes, &mut self.current_element_attributes);
-        for (name, value) in attributes.iter() {
-            set_attribute(element, name, &value.serialize());
+        if !hydrate {
+            for (name, value) in attributes.iter() {
+                set_attribute(element, name, &value.serialize());
+            }
         }
         attributes
     }

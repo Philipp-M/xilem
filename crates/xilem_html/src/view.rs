@@ -6,10 +6,7 @@
 
 use std::{any::Any, borrow::Cow, ops::Deref, rc::Rc};
 
-use wasm_bindgen::{
-    convert::{FromWasmAbi, IntoWasmAbi},
-    UnwrapThrowExt,
-};
+use wasm_bindgen::UnwrapThrowExt;
 use xilem_core::{Id, MessageResult};
 
 use crate::{context::Cx, ChangeFlags};
@@ -132,7 +129,7 @@ impl<'a> imara_diff::intern::TokenSource for &'a NodeIds {
 }
 
 pub(crate) struct UpdateElement<'a> {
-    pub(crate) parent: web_sys::Element,
+    pub(crate) parent: &'a web_sys::Element,
     pub(crate) before: &'a NodeIds,
     pub(crate) after: &'a NodeIds,
 }

@@ -110,27 +110,18 @@ impl_hydrate_tuple!(V0;0, V1;1, V2;2, V3;3, V4;4, V5;5, V6;6, V7;7, V8;8, V9;9);
 
 impl<T, A> Hydrate<T, A> for &'static str {
     fn hydrate(&self, _cx: &mut Cx, element: web_sys::Node) -> (Id, Self::State, Self::Element) {
-        let el: web_sys::Text = element.dyn_into().unwrap_throw();
-        el.set_data(self);
-        let id = Id::next();
-        (id, (), el)
+        (Id::next(), (), element.dyn_into().unwrap_throw())
     }
 }
 
 impl<T, A> Hydrate<T, A> for String {
     fn hydrate(&self, _cx: &mut Cx, element: web_sys::Node) -> (Id, Self::State, Self::Element) {
-        let el: web_sys::Text = element.dyn_into().unwrap_throw();
-        el.set_data(self);
-        let id = Id::next();
-        (id, (), el)
+        (Id::next(), (), element.dyn_into().unwrap_throw())
     }
 }
 
 impl<T, A> Hydrate<T, A> for Cow<'static, str> {
     fn hydrate(&self, _cx: &mut Cx, element: web_sys::Node) -> (Id, Self::State, Self::Element) {
-        let el: web_sys::Text = element.dyn_into().unwrap_throw();
-        el.set_data(self);
-        let id = Id::next();
-        (id, (), el)
+        (Id::next(), (), element.dyn_into().unwrap_throw())
     }
 }

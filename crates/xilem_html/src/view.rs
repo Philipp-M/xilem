@@ -6,10 +6,7 @@
 
 use std::{any::Any, borrow::Cow, ops::Deref, rc::Rc};
 
-use wasm_bindgen::{
-    convert::{FromWasmAbi, IntoWasmAbi},
-    UnwrapThrowExt,
-};
+use wasm_bindgen::UnwrapThrowExt;
 use xilem_core::{Id, MessageResult};
 
 use crate::{context::Cx, ChangeFlags};

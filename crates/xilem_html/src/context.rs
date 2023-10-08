@@ -1,6 +1,6 @@
 use std::{
     any::{Any, TypeId},
-    collections::BTreeMap,
+    rc::Rc,
 };
 
 use bitflags::bitflags;
@@ -9,12 +9,12 @@ use web_sys::Document;
 
 use xilem_core::{Id, IdPath};
 
-use crate::{app::AppRunner, Message, HTML_NS, SVG_NS, view::NodeIds};
+use crate::{app::AppRunner, vecmap::VecMap, Message, HTML_NS, SVG_NS};
 
 // Note: xilem has derive Clone here. Not sure.
 pub struct Cx {
     id_path: IdPath,
-    pub(crate) templates: BTreeMap<TypeId, web_sys::DocumentFragment>,
+    pub(crate) templates: VecMap<TypeId, (web_sys::Node, Rc<dyn Any>)>,
     document: Document,
     app_ref: Option<Box<dyn AppRunner>>,
 }
@@ -38,7 +38,7 @@ impl Cx {
             id_path: Vec::new(),
             document: crate::document(),
             app_ref: None,
-            templates: BTreeMap::new(),
+            templates: VecMap::default(),
         }
     }
 

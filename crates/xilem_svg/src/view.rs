@@ -59,7 +59,7 @@ impl DomElement for Box<dyn AnyElement> {
 pub struct Pod(pub Box<dyn AnyElement>);
 
 impl Pod {
-    fn new(node: impl DomElement, id: xilem_core::Id) -> Self {
+    fn new(node: impl DomElement, _id: xilem_core::Id) -> Self {
         node.into_pod()
     }
     fn set_id(&mut self, _id: xilem_core::Id) {}

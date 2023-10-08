@@ -65,13 +65,6 @@ where
 {
     fn hydrate(&self, cx: &mut Cx, node: web_sys::Node) -> (Id, Self::State, Self::Element) {
         let el: Self::Element = node.dyn_into().unwrap_throw();
-        // TODO this doesn't delete non existent attributes on the element...
-        // TODO set attributes here? They should've already been set
-        for (name, value) in &self.attributes {
-            el.as_element_ref()
-                .set_attribute(name, &value.serialize())
-                .unwrap_throw();
-        }
 
         // TODO is querying the DOM actually efficient here for determining Vec capacity, or should this just be an empty Vec?
         // Bench this (if it actually has a significant/measurable impact anyways)!

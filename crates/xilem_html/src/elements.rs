@@ -60,7 +60,6 @@ where
         let el = cx.create_html_element(&self.name);
 
         let attributes = cx.apply_attributes(&el);
-        let dom_attributes = cx.apply_dom_attributes(&el, |attr, el| {});
 
         let mut child_elements = vec![];
         let (id, children_states) =
@@ -211,19 +210,42 @@ macro_rules! impl_html_dom_interface {
     };
 }
 
+// because of macro hygiene, it's necessary to wrap this in extra macros
+macro_rules! build_extra {
+    ($context: expr, $el: expr,) => { Vec::new() };
+    ($context: expr, $el: expr, $($build_fn:tt)*) => { $context.apply_dom_attributes(&$el, $($build_fn)*) };
+}
+macro_rules! rebuild_extra {
+    ($context: expr, $el: expr, $changed: ident, $dom_attrs: expr,) => { };
+    ($context: expr, $el: expr, $changed: ident, $dom_attrs: expr, $($rebuild_fn:tt)*) => {
+        $changed |= $context.apply_dom_attribute_changes(&$el, &mut $dom_attrs, $($rebuild_fn)*);
+    };
+}
+
 // TODO maybe it's possible to reduce even more in the impl function bodies and put into impl_functions
 //      (should improve compile times and probably wasm binary size)
 macro_rules! define_html_element {
     (($ty_name:ident, $name:ident, $dom_interface:ident)) => {
-        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, {|_,_| {}}, {|_,_,_| ChangeFlags::empty()}));
+        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, {}, {}));
     };
-    (($ty_name:ident, $name:ident, $dom_interface:ident, {$($apply_fn:tt)*}, {$($changes_fn:tt)*})) => {
-        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, {$($apply_fn)*}, {$($changes_fn)*}));
+    (($ty_name:ident, $name:ident, $dom_interface:ident, build_fn: {$($build_fn:tt)*}, rebuild_fn: {$($rebuild_fn:tt)*})) => {
+        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, {$($build_fn)*}, {$($rebuild_fn)*}));
     };
     (($ty_name:ident, $name:ident, $dom_interface:ident, $t:ident, $a: ident, $vs: ident)) => {
-        define_html_element!(($ty_name, $name, $dom_interface, $t, $a, $vs, {|_,_| {}}, {|_,_,_| ChangeFlags::empty()}));
+        define_html_element!(($ty_name, $name, $dom_interface, $t, $a, $vs, {}, {}));
     };
-    (($ty_name:ident, $name:ident, $dom_interface:ident, $t:ident, $a: ident, $vs: ident, {$($apply_fn:tt)*}, {$($changes_fn:tt)*})) => {
+    (($ty_name:ident,
+      $name:ident,
+      $dom_interface:ident,
+      $t:ident,
+      $a: ident,
+      $vs: ident,
+      build_fn: {$($build_fn:tt)*},
+      rebuild_fn: {$($rebuild_fn:tt)*}
+    )) => {
+        define_html_element!(($ty_name, $name, $dom_interface, $t, $a, $vs, { $($build_fn)*}, { $($rebuild_fn)* }));
+    };
+    (($ty_name:ident, $name:ident, $dom_interface:ident, $t:ident, $a: ident, $vs: ident, {$($build_extra:tt)*}, {$($rebuild_extra:tt)*})) => {
         pub struct $ty_name<$t, $a = (), $vs = ()>($vs, PhantomData<fn() -> ($t, $a)>);
 
         impl<$t, $a, $vs> ViewMarker for $ty_name<$t, $a, $vs> {}
@@ -237,8 +259,7 @@ macro_rules! define_html_element {
                 let el = cx.create_html_element(self.node_name());
 
                 let attributes = cx.apply_attributes(&el);
-                // TODO should this even be generated for elements that don't have any dom attrs?
-                let dom_attributes = cx.apply_dom_attributes(&el, $($apply_fn)*);
+                let dom_attributes = build_extra!(cx, el, $($build_extra)*);
 
                 let mut child_elements = vec![];
                 let (id, children_states) =
@@ -275,7 +296,7 @@ macro_rules! define_html_element {
                 let mut changed = ChangeFlags::empty();
 
                 changed |= cx.apply_attribute_changes(element, &mut state.attributes);
-                changed |= cx.apply_dom_attribute_changes(&element, &mut state.dom_attributes, $($changes_fn)*);
+                rebuild_extra!(cx, element, changed, state.dom_attributes, $($rebuild_extra)*);
 
                 // update children
                 let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
@@ -403,7 +424,7 @@ define_html_elements!(
         Video,
         video,
         HtmlVideoElement,
-        {
+        build_fn: {
             |el, attr| match attr {
                 DomAttr::HtmlMediaElement(HtmlMediaElementAttr::Play(play)) => {
                     if *play {
@@ -414,10 +435,10 @@ define_html_elements!(
                             .unwrap_throw();
                     }
                 }
-                _ => unreachable!(),
+                // _ => unreachable!(),
             }
         },
-        {
+        rebuild_fn: {
             |el, old, new| match (old, new) {
                 (
                     DomAttr::HtmlMediaElement(HtmlMediaElementAttr::Play(old_play)),

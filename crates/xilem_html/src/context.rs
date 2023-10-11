@@ -190,6 +190,8 @@ impl Cx {
     ) -> ChangeFlags {
         let mut changed = ChangeFlags::empty();
         // currently it's required that there's no changes the amount of attributes
+        // TODO not sure if it makes sense to just leave it at the previous value,
+        // but this would introduce "side-effects" and may result in unwanted behavior
         assert!(attributes.len() == self.current_element_dom_attributes.len());
         for (old, new) in attributes
             .iter()

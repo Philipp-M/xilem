@@ -15,10 +15,10 @@ type CowStr = std::borrow::Cow<'static, str>;
 /// The state associated with a HTML element `View`.
 ///
 /// Stores handles to the child elements and any child state, as well as attributes and event listeners
-pub struct ElementState<ViewSeqState> {
+pub struct ElementState<ViewSeqState, DA = ()> {
     pub(crate) children_states: ViewSeqState,
     pub(crate) attributes: VecMap<CowStr, AttributeValue>,
-    pub(crate) dom_attributes: Vec<DomAttr>,
+    pub(crate) dom_attributes: DA,
     pub(crate) child_elements: Vec<Pod>,
     pub(crate) scratch: Vec<Pod>,
 }
@@ -81,7 +81,7 @@ where
             child_elements,
             scratch: vec![],
             attributes,
-            dom_attributes: Vec::new(),
+            dom_attributes: (),
         };
         (id, state, el)
     }
@@ -212,7 +212,7 @@ macro_rules! impl_html_dom_interface {
 
 // because of macro hygiene, it's necessary to wrap this in extra macros
 macro_rules! build_extra {
-    ($context: expr, $el: expr,) => { Vec::new() };
+    ($context: expr, $el: expr,) => { () };
     ($context: expr, $el: expr, $($build_fn:tt)*) => { $context.apply_dom_attributes(&$el, $($build_fn)*) };
 }
 macro_rules! rebuild_extra {
@@ -220,6 +220,10 @@ macro_rules! rebuild_extra {
     ($context: expr, $el: expr, $changed: ident, $dom_attrs: expr, $($rebuild_fn:tt)*) => {
         $changed |= $context.apply_dom_attribute_changes(&$el, &mut $dom_attrs, $($rebuild_fn)*);
     };
+}
+macro_rules! dom_attrs_generic_param {
+    () => { () };
+    ($($_:tt)*) => { Vec<DomAttr> };
 }
 
 // TODO maybe it's possible to reduce even more in the impl function bodies and put into impl_functions
@@ -251,7 +255,7 @@ macro_rules! define_html_element {
         impl<$t, $a, $vs> ViewMarker for $ty_name<$t, $a, $vs> {}
 
         impl<$t, $a, $vs: ViewSequence<$t, $a>> View<$t, $a> for $ty_name<$t, $a, $vs> {
-            type State = ElementState<$vs::State>;
+            type State = ElementState<$vs::State, dom_attrs_generic_param!($($build_extra)*$($rebuild_extra)*)>;
 
             type Element = web_sys::$dom_interface;
 

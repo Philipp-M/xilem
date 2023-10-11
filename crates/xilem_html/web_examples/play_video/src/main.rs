@@ -1,5 +1,7 @@
 use xilem_html::{
-    document_body, elements as el, interfaces::Element, interfaces::HtmlMediaElement, App,
+    document_body, elements as el,
+    interfaces::{Element, HtmlMediaElement, HtmlVideoElement},
+    App,
 };
 
 pub fn main() {

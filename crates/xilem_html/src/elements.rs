@@ -4,8 +4,8 @@ use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult, VecSplice};
 
 use crate::{
-    vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, DomAttr, HtmlMediaElementAttr,
-    Pod, View, ViewMarker, ViewSequence,
+    attribute::HtmlVideoElementAttr, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags,
+    Cx, DomAttr, HtmlMediaElementAttr, Pod, View, ViewMarker, ViewSequence,
 };
 
 use super::interfaces::{Element, EventTarget, HtmlElement, Node};
@@ -439,7 +439,11 @@ define_html_elements!(
                             .unwrap_throw();
                     }
                 }
-                // _ => unreachable!(),
+                DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(width)) => {
+                    web_sys::console::log_1(&format!("video element setting width {width}").into());
+                    el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw().set_width(*width);
+                }
+                _ => unreachable!(),
             }
         },
         rebuild_fn: {

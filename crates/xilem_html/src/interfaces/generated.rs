@@ -4,7 +4,7 @@ use crate::{
     event::EventListener,
     events::{impl_dom_interface_for_all_event_tys, impl_dom_interface_for_event_ty},
     interfaces::Element,
-    Attr, HtmlMediaElementPlay, OptionalAction,
+    Attr, HtmlMediaElementPlay, OptionalAction, attribute::HtmlVideoElementWidth,
 };
 
 macro_rules! dom_interface_trait_definitions {
@@ -113,5 +113,9 @@ dom_interface_trait_definitions!(
     HtmlTitleElement : HtmlElement {},
     HtmlTrackElement : HtmlElement {},
     HtmlUListElement : HtmlElement {},
-    HtmlVideoElement : HtmlMediaElement {}
+    HtmlVideoElement : HtmlMediaElement {
+        fn width(self, value: u32) -> HtmlVideoElementWidth<Self> {
+            HtmlVideoElementWidth::new(self, value)
+        }
+    }
 );

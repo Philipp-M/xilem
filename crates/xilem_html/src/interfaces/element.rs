@@ -1,4 +1,4 @@
-use crate::{events::impl_dom_interface_for_event_ty, HtmlMediaElementPlay};
+use crate::events::impl_dom_interface_for_event_ty;
 use std::borrow::Cow;
 
 use wasm_bindgen::JsCast;
@@ -153,7 +153,6 @@ where
 }
 
 impl<T, A, E: Element<T, A>> Element<T, A> for Attr<E> {}
-impl<T, A, E: Element<T, A>> Element<T, A> for HtmlMediaElementPlay<E> {}
 
 impl<T, A, E, Ev, F, OA> Element<T, A> for EventListener<E, Ev, F>
 where

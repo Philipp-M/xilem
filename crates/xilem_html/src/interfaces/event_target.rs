@@ -7,7 +7,7 @@ use crate::{
     attribute::Attr,
     event::EventListener,
     events::{impl_dom_interface_for_all_event_tys, impl_dom_interface_for_event_ty},
-    Cached, HtmlMediaElementPlay, OptionalAction, View, ViewMarker,
+    Cached, OptionalAction, View, ViewMarker,
 };
 
 use super::Element;
@@ -46,7 +46,6 @@ pub trait EventTarget<T, A>: View<T, A> + ViewMarker {
 }
 
 impl<T, A, E: Element<T, A>> EventTarget<T, A> for Attr<E> {}
-impl<T, A, E: Element<T, A>> EventTarget<T, A> for HtmlMediaElementPlay<E> {}
 
 impl<T, A, E: EventTarget<T, A>, Ev, F, OA> EventTarget<T, A> for EventListener<E, Ev, F>
 where

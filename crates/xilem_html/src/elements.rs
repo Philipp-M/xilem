@@ -8,7 +8,7 @@ use crate::{
     Cx, DomAttr, HtmlMediaElementAttr, Pod, View, ViewMarker, ViewSequence,
 };
 
-use super::interfaces::{Element, EventTarget, HtmlElement, Node};
+use super::interfaces::{Element, HtmlElement};
 
 type CowStr = std::borrow::Cow<'static, str>;
 
@@ -41,6 +41,12 @@ pub fn custom_element<T, A, Children: ViewSequence<T, A>>(
         name: name.into(),
         children,
         phantom: PhantomData,
+    }
+}
+
+impl<T, A, Children> CustomElement<T, A, Children> {
+    fn node_name(&self) -> &str {
+        &self.name
     }
 }
 
@@ -149,14 +155,6 @@ where
     }
 }
 
-impl<T, A, Children: ViewSequence<T, A>> EventTarget<T, A> for CustomElement<T, A, Children> {}
-
-impl<T, A, Children: ViewSequence<T, A>> Node<T, A> for CustomElement<T, A, Children> {
-    fn node_name(&self) -> &str {
-        &self.name
-    }
-}
-
 impl<T, A, Children: ViewSequence<T, A>> Element<T, A> for CustomElement<T, A, Children> {}
 impl<T, A, Children: ViewSequence<T, A>> HtmlElement<T, A> for CustomElement<T, A, Children> {}
 
@@ -173,21 +171,7 @@ macro_rules! generate_dom_interface_impl {
 }
 
 macro_rules! impl_html_dom_interface {
-    ($ty_name: ident, $name: ident, $t: ident, $a:ident, $vs:ident, Node) => {
-        impl<$t, $a, $vs: ViewSequence<$t, $a>> crate::interfaces::EventTarget<$t, $a>
-            for $ty_name<$t, $a, $vs>
-        {
-        }
-        impl<$t, $a, $vs: ViewSequence<$t, $a>> crate::interfaces::Node<$t, $a>
-            for $ty_name<$t, $a, $vs>
-        {
-            fn node_name(&self) -> &str {
-                stringify!($name)
-            }
-        }
-    };
     ($ty_name: ident, $name: ident, $t: ident, $a:ident, $vs:ident, Element) => {
-        impl_html_dom_interface!($ty_name, $name, $t, $a, $vs, Node);
         generate_dom_interface_impl!($ty_name, $name, $t, $a, $vs, Element);
     };
     ($ty_name: ident, $name: ident, $t: ident, $a:ident, $vs:ident, HtmlElement) => {
@@ -260,7 +244,7 @@ macro_rules! define_html_element {
             type Element = web_sys::$dom_interface;
 
             fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
-                let el = cx.create_html_element(self.node_name());
+                let el = cx.create_html_element(stringify!($name));
 
                 let attributes = cx.apply_attributes(&el);
                 let dom_attributes = build_extra!(cx, el, $($build_extra)*);

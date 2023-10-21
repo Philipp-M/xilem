@@ -3,7 +3,8 @@ use std::borrow::Cow;
 use xilem_core::{Id, MessageResult};
 
 use crate::{
-    interfaces::{EventTarget, HtmlMediaElement, Node, HtmlVideoElement, HtmlElement},
+    for_all_dom_interfaces,
+    interfaces::{HtmlElement, HtmlMediaElement, HtmlVideoElement},
     AttributeValue, ChangeFlags, Cx, View, ViewMarker,
 };
 
@@ -40,13 +41,6 @@ impl<E> HtmlMediaElementPlay<E> {
 
 impl<E> ViewMarker for HtmlMediaElementPlay<E> {}
 
-impl<T, A, E: HtmlMediaElement<T, A>> EventTarget<T, A> for HtmlMediaElementPlay<E> {}
-impl<T, A, E: HtmlMediaElement<T, A>> Node<T, A> for HtmlMediaElementPlay<E> {
-    fn node_name(&self) -> &str {
-        self.element.node_name()
-    }
-}
-// impl<T, A, E: HtmlMediaElement<T, A>> Element<T, A> for E {}
 impl<T, A, E: HtmlMediaElement<T, A>> Element<T, A> for HtmlMediaElementPlay<E> {}
 impl<T, A, E: HtmlMediaElement<T, A>> HtmlElement<T, A> for HtmlMediaElementPlay<E> {}
 impl<T, A, E: HtmlMediaElement<T, A>> HtmlMediaElement<T, A> for HtmlMediaElementPlay<E> {}
@@ -102,12 +96,6 @@ impl<E> HtmlVideoElementWidth<E> {
 
 impl<E> ViewMarker for HtmlVideoElementWidth<E> {}
 
-impl<T, A, E: HtmlVideoElement<T, A>> EventTarget<T, A> for HtmlVideoElementWidth<E> {}
-impl<T, A, E: HtmlVideoElement<T, A>> Node<T, A> for HtmlVideoElementWidth<E> {
-    fn node_name(&self) -> &str {
-        self.element.node_name()
-    }
-}
 impl<T, A, E: HtmlVideoElement<T, A>> Element<T, A> for HtmlVideoElementWidth<E> {}
 impl<T, A, E: HtmlVideoElement<T, A>> HtmlElement<T, A> for HtmlVideoElementWidth<E> {}
 impl<T, A, E: HtmlVideoElement<T, A>> HtmlMediaElement<T, A> for HtmlVideoElementWidth<E> {}
@@ -136,10 +124,11 @@ impl<T, A, E: Element<T, A>> View<T, A> for HtmlVideoElementWidth<E> {
         state: &mut Self::State,
         element: &mut Self::Element,
     ) -> ChangeFlags {
-        cx.add_new_attribute_to_current_element(
-            &Cow::from("width"),
-            &Some(AttributeValue::U32(self.value)),
-        );
+        // TODO is this necessary when using the DOM attribute (outside of SSR contexts)?
+        // cx.add_new_attribute_to_current_element(
+        //     &Cow::from("width"),
+        //     &Some(AttributeValue::U32(self.value)),
+        // );
         cx.add_new_dom_attribute_to_current_element(
             |a| matches!(a, DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(_))),
             &DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(self.value)),
@@ -197,3 +186,14 @@ impl<T, A, E: Element<T, A>> View<T, A> for Attr<E> {
         self.element.message(id_path, state, message, app_state)
     }
 }
+
+macro_rules! impl_dom_interface_for_attr {
+    ($dom_interface:ident) => {
+        impl<T, A, E: $crate::interfaces::$dom_interface<T, A>>
+            $crate::interfaces::$dom_interface<T, A> for Attr<E>
+        {
+        }
+    };
+}
+
+for_all_dom_interfaces!(impl_dom_interface_for_attr);

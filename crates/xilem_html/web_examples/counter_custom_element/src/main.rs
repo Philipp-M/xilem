@@ -1,7 +1,7 @@
 use xilem_html::{
     document_body,
     elements::custom_element,
-    interfaces::{EventTarget, HtmlElement},
+    interfaces::{Element, HtmlElement},
     App, View,
 };
 

@@ -1,0 +1,357 @@
+use crate::{attribute::HtmlVideoElementWidth, HtmlMediaElementPlay, View, ViewMarker};
+use std::borrow::Cow;
+
+use gloo::events::EventListenerOptions;
+use wasm_bindgen::JsCast;
+
+use crate::{
+    events::{self, EventListener},
+    Attr, AttributeValue, IntoAttributeValue, OptionalAction,
+};
+
+// TODO should the options be its own function `on_event_with_options`,
+// or should that be done via the builder pattern: `el.on_event().passive(false)`?
+macro_rules! event_handler_mixin {
+    ($(($event_ty: ident, $fn_name:ident, $event:expr, $web_sys_event_type:ident),)*) => {
+    $(
+        fn $fn_name<EH, OA>(self, handler: EH) -> events::$event_ty<Self, EH>
+        where
+            OA: OptionalAction<A>,
+            EH: Fn(&mut T, web_sys::$web_sys_event_type) -> OA,
+        {
+            $crate::events::$event_ty::new(self, handler)
+        }
+    )*
+    };
+}
+
+pub trait Element<T, A = ()>: View<T, A> + ViewMarker
+where
+    Self: Sized,
+{
+    fn on<E, EH, OA>(
+        self,
+        event: impl Into<Cow<'static, str>>,
+        handler: EH,
+    ) -> EventListener<Self, E, EH>
+    where
+        E: JsCast + 'static,
+        OA: OptionalAction<A>,
+        EH: Fn(&mut T, E) -> OA,
+        Self: Sized,
+    {
+        EventListener::new(self, event, handler)
+    }
+
+    fn on_with_options<E, EH, OA>(
+        self,
+        event: impl Into<Cow<'static, str>>,
+        handler: EH,
+        options: EventListenerOptions,
+    ) -> EventListener<Self, E, EH>
+    where
+        E: JsCast + 'static,
+        OA: OptionalAction<A>,
+        EH: Fn(&mut T, E) -> OA,
+        Self: Sized,
+    {
+        EventListener::new_with_options(self, event, handler, options)
+    }
+
+    // TODO should the API be "functional" in the sense, that new attributes are wrappers around the type,
+    // or should they modify the underlying instance (e.g. via the following methods)?
+    // The disadvantage that "functional" brings in, is that elements are not modifiable (i.e. attributes can't be simply added etc.)
+    // fn attrs(&self) -> &Attributes;
+    // fn attrs_mut(&mut self) -> &mut Attributes;
+
+    /// Set an attribute on this element.
+    ///
+    /// # Panics
+    ///
+    /// If the name contains characters that are not valid in an attribute name,
+    /// then the `View::build`/`View::rebuild` functions will panic for this view.
+    fn attr(
+        self,
+        name: impl Into<Cow<'static, str>>,
+        value: impl IntoAttributeValue,
+    ) -> Attr<Self> {
+        Attr {
+            element: self,
+            name: name.into(),
+            value: value.into_attribute_value(),
+        }
+    }
+
+    // TODO should some methods extend some properties automatically,
+    // instead of overwriting the (possibly set) inner value
+    // or should there be (extra) "modifier" methods like `add_class` and/or `remove_class`
+    fn class(self, class: impl Into<Cow<'static, str>>) -> Attr<Self> {
+        self.attr("class", AttributeValue::String(class.into()))
+    }
+
+    // event list from
+    // https://html.spec.whatwg.org/multipage/webappapis.html#idl-definitions
+    //
+    // I didn't include the events on the window, since we aren't attaching
+    // any events to the window in xilem_html
+    event_handler_mixin!(
+        (OnAbort, on_abort, "abort", Event),
+        (OnAuxClick, on_auxclick, "auxclick", PointerEvent),
+        (OnBeforeInput, on_beforeinput, "beforeinput", InputEvent),
+        (OnBeforeMatch, on_beforematch, "beforematch", Event),
+        (OnBeforeToggle, on_beforetoggle, "beforetoggle", Event),
+        (OnBlur, on_blur, "blur", FocusEvent),
+        (OnCancel, on_cancel, "cancel", Event),
+        (OnCanPlay, on_canplay, "canplay", Event),
+        (OnCanPlayThrough, on_canplaythrough, "canplaythrough", Event),
+        (OnChange, on_change, "change", Event),
+        (OnClick, on_click, "click", MouseEvent),
+        (OnClose, on_close, "close", Event),
+        (OnContextLost, on_contextlost, "contextlost", Event),
+        (OnContextMenu, on_contextmenu, "contextmenu", PointerEvent),
+        (
+            OnContextRestored,
+            on_contextrestored,
+            "contextrestored",
+            Event
+        ),
+        (OnCopy, on_copy, "copy", Event),
+        (OnCueChange, on_cuechange, "cuechange", Event),
+        (OnCut, on_cut, "cut", Event),
+        (OnDblClick, on_dblclick, "dblclick", MouseEvent),
+        (OnDrag, on_drag, "drag", Event),
+        (OnDragEnd, on_dragend, "dragend", Event),
+        (OnDragEnter, on_dragenter, "dragenter", Event),
+        (OnDragLeave, on_dragleave, "dragleave", Event),
+        (OnDragOver, on_dragover, "dragover", Event),
+        (OnDragStart, on_dragstart, "dragstart", Event),
+        (OnDrop, on_drop, "drop", Event),
+        (OnDurationChange, on_durationchange, "durationchange", Event),
+        (OnEmptied, on_emptied, "emptied", Event),
+        (OnEnded, on_ended, "ended", Event),
+        (OnError, on_error, "error", Event),
+        (OnFocus, on_focus, "focus", FocusEvent),
+        (OnFocusIn, on_focusin, "focusin", FocusEvent),
+        (OnFocusOut, on_focusout, "focusout", FocusEvent),
+        (OnFormData, on_formdata, "formdata", Event),
+        (OnInput, on_input, "input", InputEvent),
+        (OnInvalid, on_invalid, "invalid", Event),
+        (OnKeyDown, on_keydown, "keydown", KeyboardEvent),
+        (OnKeyUp, on_keyup, "keyup", KeyboardEvent),
+        (OnLoad, on_load, "load", Event),
+        (OnLoadedData, on_loadeddata, "loadeddata", Event),
+        (OnLoadedMetadata, on_loadedmetadata, "loadedmetadata", Event),
+        (OnLoadStart, on_loadstart, "loadstart", Event),
+        (OnMouseDown, on_mousedown, "mousedown", MouseEvent),
+        (OnMouseEnter, on_mouseenter, "mouseenter", MouseEvent),
+        (OnMouseLeave, on_mouseleave, "mouseleave", MouseEvent),
+        (OnMouseMove, on_mousemove, "mousemove", MouseEvent),
+        (OnMouseOut, on_mouseout, "mouseout", MouseEvent),
+        (OnMouseOver, on_mouseover, "mouseover", MouseEvent),
+        (OnMouseUp, on_mouseup, "mouseup", MouseEvent),
+        (OnPaste, on_paste, "paste", Event),
+        (OnPause, on_pause, "pause", Event),
+        (OnPlay, on_play, "play", Event),
+        (OnPlaying, on_playing, "playing", Event),
+        (OnProgress, on_progress, "progress", Event),
+        (OnRateChange, on_ratechange, "ratechange", Event),
+        (OnReset, on_reset, "reset", Event),
+        (OnResize, on_resize, "resize", Event),
+        (OnScroll, on_scroll, "scroll", Event),
+        (OnScrollEnd, on_scrollend, "scrollend", Event),
+        (
+            OnSecurityPolicyViolation,
+            on_securitypolicyviolation,
+            "securitypolicyviolation",
+            Event
+        ),
+        (OnSeeked, on_seeked, "seeked", Event),
+        (OnSeeking, on_seeking, "seeking", Event),
+        (OnSelect, on_select, "select", Event),
+        (OnSlotChange, on_slotchange, "slotchange", Event),
+        (OnStalled, on_stalled, "stalled", Event),
+        (OnSubmit, on_submit, "submit", Event),
+        (OnSuspend, on_suspend, "suspend", Event),
+        (OnTimeUpdate, on_timeupdate, "timeupdate", Event),
+        (OnToggle, on_toggle, "toggle", Event),
+        (OnVolumeChange, on_volumechange, "volumechange", Event),
+        (OnWaiting, on_waiting, "waiting", Event),
+        (OnWheel, on_wheel, "wheel", WheelEvent),
+    );
+}
+
+macro_rules! dom_interface_trait_definitions {
+    ($($dom_interface:ident : $super_dom_interface: ident $body: tt),*) => {
+        $(pub trait $dom_interface<T, A = ()>: $super_dom_interface<T, A> $body)*
+    };
+}
+
+dom_interface_trait_definitions!(
+    HtmlElement : Element {},
+    HtmlAnchorElement : HtmlElement {},
+    HtmlAreaElement : HtmlElement {},
+    HtmlAudioElement : HtmlMediaElement {},
+    HtmlBaseElement : HtmlElement {},
+    HtmlBodyElement : HtmlElement {},
+    HtmlBrElement : HtmlElement {},
+    HtmlButtonElement : HtmlElement {},
+    HtmlCanvasElement : HtmlElement {
+        // Basic idea how to get strong typed attributes working
+        // Rather the DOM interface attributes than HTML/XML attributes though, as they are (mostly) well defined by the spec,
+        // compared to HTML/XML attributes.
+        fn width(self, width: u32) -> Attr<Self> {
+            self.attr("width", width)
+        }
+        fn height(self, height: u32) -> Attr<Self> {
+            self.attr("height", height)
+        }
+    },
+    HtmlDataElement : HtmlElement {},
+    HtmlDataListElement : HtmlElement {},
+    HtmlDetailsElement : HtmlElement {},
+    HtmlDialogElement : HtmlElement {},
+    HtmlDirectoryElement : HtmlElement {},
+    HtmlDivElement : HtmlElement {},
+    HtmlDListElement : HtmlElement {},
+    HtmlUnknownElement : HtmlElement {},
+    HtmlEmbedElement : HtmlElement {},
+    HtmlFieldSetElement : HtmlElement {},
+    HtmlFontElement : HtmlElement {},
+    HtmlFormElement : HtmlElement {},
+    HtmlFrameElement : HtmlElement {},
+    HtmlFrameSetElement : HtmlElement {},
+    HtmlHeadElement : HtmlElement {},
+    HtmlHeadingElement : HtmlElement {},
+    HtmlHrElement : HtmlElement {},
+    HtmlHtmlElement : HtmlElement {},
+    HtmlIFrameElement : HtmlElement {},
+    HtmlImageElement : HtmlElement {},
+    HtmlInputElement : HtmlElement {},
+    HtmlLabelElement : HtmlElement {},
+    HtmlLegendElement : HtmlElement {},
+    HtmlLiElement : HtmlElement {},
+    HtmlLinkElement : HtmlElement {},
+    HtmlMapElement : HtmlElement {},
+    HtmlMediaElement : HtmlElement {
+        fn play(self, value: bool) -> HtmlMediaElementPlay<Self> {
+            HtmlMediaElementPlay::new(self, value)
+        }
+    },
+    HtmlMenuElement : HtmlElement {},
+    HtmlMenuItemElement : HtmlElement {},
+    HtmlMetaElement : HtmlElement {},
+    HtmlMeterElement : HtmlElement {},
+    HtmlModElement : HtmlElement {},
+    HtmlObjectElement : HtmlElement {},
+    HtmlOListElement : HtmlElement {},
+    HtmlOptGroupElement : HtmlElement {},
+    HtmlOptionElement : HtmlElement {},
+    HtmlOutputElement : HtmlElement {},
+    HtmlParagraphElement : HtmlElement {},
+    HtmlParamElement : HtmlElement {},
+    HtmlPictureElement : HtmlElement {},
+    HtmlPreElement : HtmlElement {},
+    HtmlProgressElement : HtmlElement {},
+    HtmlQuoteElement : HtmlElement {},
+    HtmlScriptElement : HtmlElement {},
+    HtmlSelectElement : HtmlElement {},
+    HtmlSlotElement : HtmlElement {},
+    HtmlSourceElement : HtmlElement {},
+    HtmlSpanElement : HtmlElement {},
+    HtmlStyleElement : HtmlElement {},
+    HtmlTableCaptionElement : HtmlElement {},
+    HtmlTableCellElement : HtmlElement {},
+    HtmlTableColElement : HtmlElement {},
+    HtmlTableElement : HtmlElement {},
+    HtmlTableRowElement : HtmlElement {},
+    HtmlTableSectionElement : HtmlElement {},
+    HtmlTemplateElement : HtmlElement {},
+    HtmlTimeElement : HtmlElement {},
+    HtmlTextAreaElement : HtmlElement {},
+    HtmlTitleElement : HtmlElement {},
+    HtmlTrackElement : HtmlElement {},
+    HtmlUListElement : HtmlElement {},
+    HtmlVideoElement : HtmlMediaElement {
+        fn width(self, value: u32) -> HtmlVideoElementWidth<Self> {
+            HtmlVideoElementWidth::new(self, value)
+        }
+    }
+);
+
+#[macro_export]
+macro_rules! for_all_dom_interfaces {
+    ($mac:ident $($body:tt)*) => {
+        $mac!(Element $($body)*);
+        $mac!(HtmlElement $($body)*);
+        $mac!(HtmlAnchorElement $($body)*);
+        $mac!(HtmlAreaElement $($body)*);
+        $mac!(HtmlAudioElement $($body)*);
+        $mac!(HtmlBaseElement $($body)*);
+        $mac!(HtmlBodyElement $($body)*);
+        $mac!(HtmlBrElement $($body)*);
+        $mac!(HtmlButtonElement $($body)*);
+        $mac!(HtmlCanvasElement $($body)*);
+        $mac!(HtmlDataElement $($body)*);
+        $mac!(HtmlDataListElement $($body)*);
+        $mac!(HtmlDetailsElement $($body)*);
+        $mac!(HtmlDialogElement $($body)*);
+        $mac!(HtmlDirectoryElement $($body)*);
+        $mac!(HtmlDivElement $($body)*);
+        $mac!(HtmlDListElement $($body)*);
+        $mac!(HtmlUnknownElement $($body)*);
+        $mac!(HtmlEmbedElement $($body)*);
+        $mac!(HtmlFieldSetElement $($body)*);
+        $mac!(HtmlFontElement $($body)*);
+        $mac!(HtmlFormElement $($body)*);
+        $mac!(HtmlFrameElement $($body)*);
+        $mac!(HtmlFrameSetElement $($body)*);
+        $mac!(HtmlHeadElement $($body)*);
+        $mac!(HtmlHeadingElement $($body)*);
+        $mac!(HtmlHrElement $($body)*);
+        $mac!(HtmlHtmlElement $($body)*);
+        $mac!(HtmlIFrameElement $($body)*);
+        $mac!(HtmlImageElement $($body)*);
+        $mac!(HtmlInputElement $($body)*);
+        $mac!(HtmlLabelElement $($body)*);
+        $mac!(HtmlLegendElement $($body)*);
+        $mac!(HtmlLiElement $($body)*);
+        $mac!(HtmlLinkElement $($body)*);
+        $mac!(HtmlMapElement $($body)*);
+        $mac!(HtmlMediaElement $($body)*);
+        $mac!(HtmlMenuElement $($body)*);
+        $mac!(HtmlMenuItemElement $($body)*);
+        $mac!(HtmlMetaElement $($body)*);
+        $mac!(HtmlMeterElement $($body)*);
+        $mac!(HtmlModElement $($body)*);
+        $mac!(HtmlObjectElement $($body)*);
+        $mac!(HtmlOListElement $($body)*);
+        $mac!(HtmlOptGroupElement $($body)*);
+        $mac!(HtmlOptionElement $($body)*);
+        $mac!(HtmlOutputElement $($body)*);
+        $mac!(HtmlParagraphElement $($body)*);
+        $mac!(HtmlParamElement $($body)*);
+        $mac!(HtmlPictureElement $($body)*);
+        $mac!(HtmlPreElement $($body)*);
+        $mac!(HtmlProgressElement $($body)*);
+        $mac!(HtmlQuoteElement $($body)*);
+        $mac!(HtmlScriptElement $($body)*);
+        $mac!(HtmlSelectElement $($body)*);
+        $mac!(HtmlSlotElement $($body)*);
+        $mac!(HtmlSourceElement $($body)*);
+        $mac!(HtmlSpanElement $($body)*);
+        $mac!(HtmlStyleElement $($body)*);
+        $mac!(HtmlTableCaptionElement $($body)*);
+        $mac!(HtmlTableCellElement $($body)*);
+        $mac!(HtmlTableColElement $($body)*);
+        $mac!(HtmlTableElement $($body)*);
+        $mac!(HtmlTableRowElement $($body)*);
+        $mac!(HtmlTableSectionElement $($body)*);
+        $mac!(HtmlTemplateElement $($body)*);
+        $mac!(HtmlTimeElement $($body)*);
+        $mac!(HtmlTextAreaElement $($body)*);
+        $mac!(HtmlTitleElement $($body)*);
+        $mac!(HtmlTrackElement $($body)*);
+        $mac!(HtmlUListElement $($body)*);
+        $mac!(HtmlVideoElement $($body)*);
+    }
+}

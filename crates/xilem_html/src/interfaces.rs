@@ -180,13 +180,37 @@ where
     );
 }
 
-macro_rules! dom_interface_trait_definitions {
-    ($($dom_interface:ident : $super_dom_interface: ident $body: tt),*) => {
+macro_rules! dom_interface_macro_and_trait_definitions {
+    // $dollar workaround for not yet stabilized feature 'macro_metavar_expr'
+    ($dollar:tt, $($dom_interface:ident : $super_dom_interface: ident $body: tt),*) => {
         $(pub trait $dom_interface<T, A = ()>: $super_dom_interface<T, A> $body)*
+
+        // TODO different name for relatives??
+        macro_rules! for_all_dom_interface_relatives {
+            // base case, Element is the root interface for all kinds of DOM interfaces
+            (Element, $mac:ident $dollar($body_:tt)*) => {
+                $mac!(Element $dollar($body_)*);
+            };
+            $(($dom_interface, $mac:ident $dollar($body_:tt)*) => {
+                $mac!($dom_interface $dollar($body_)*);
+                for_all_dom_interface_relatives!($super_dom_interface, $mac $dollar($body_)*);
+             };)*
+        }
+
+        pub(crate) use for_all_dom_interface_relatives;
+
+        macro_rules! for_all_dom_interfaces {
+            ($mac:ident $dollar($body_:tt)*) => {
+                $mac!(Element $dollar($body_)*);
+                $($mac!($dom_interface $dollar($body_)*);)*
+            }
+        }
+
+        pub(crate) use for_all_dom_interfaces;
     };
 }
 
-dom_interface_trait_definitions!(
+dom_interface_macro_and_trait_definitions!($,
     HtmlElement : Element {},
     HtmlAnchorElement : HtmlElement {},
     HtmlAreaElement : HtmlElement {},
@@ -277,81 +301,3 @@ dom_interface_trait_definitions!(
         }
     }
 );
-
-#[macro_export]
-macro_rules! for_all_dom_interfaces {
-    ($mac:ident $($body:tt)*) => {
-        $mac!(Element $($body)*);
-        $mac!(HtmlElement $($body)*);
-        $mac!(HtmlAnchorElement $($body)*);
-        $mac!(HtmlAreaElement $($body)*);
-        $mac!(HtmlAudioElement $($body)*);
-        $mac!(HtmlBaseElement $($body)*);
-        $mac!(HtmlBodyElement $($body)*);
-        $mac!(HtmlBrElement $($body)*);
-        $mac!(HtmlButtonElement $($body)*);
-        $mac!(HtmlCanvasElement $($body)*);
-        $mac!(HtmlDataElement $($body)*);
-        $mac!(HtmlDataListElement $($body)*);
-        $mac!(HtmlDetailsElement $($body)*);
-        $mac!(HtmlDialogElement $($body)*);
-        $mac!(HtmlDirectoryElement $($body)*);
-        $mac!(HtmlDivElement $($body)*);
-        $mac!(HtmlDListElement $($body)*);
-        $mac!(HtmlUnknownElement $($body)*);
-        $mac!(HtmlEmbedElement $($body)*);
-        $mac!(HtmlFieldSetElement $($body)*);
-        $mac!(HtmlFontElement $($body)*);
-        $mac!(HtmlFormElement $($body)*);
-        $mac!(HtmlFrameElement $($body)*);
-        $mac!(HtmlFrameSetElement $($body)*);
-        $mac!(HtmlHeadElement $($body)*);
-        $mac!(HtmlHeadingElement $($body)*);
-        $mac!(HtmlHrElement $($body)*);
-        $mac!(HtmlHtmlElement $($body)*);
-        $mac!(HtmlIFrameElement $($body)*);
-        $mac!(HtmlImageElement $($body)*);
-        $mac!(HtmlInputElement $($body)*);
-        $mac!(HtmlLabelElement $($body)*);
-        $mac!(HtmlLegendElement $($body)*);
-        $mac!(HtmlLiElement $($body)*);
-        $mac!(HtmlLinkElement $($body)*);
-        $mac!(HtmlMapElement $($body)*);
-        $mac!(HtmlMediaElement $($body)*);
-        $mac!(HtmlMenuElement $($body)*);
-        $mac!(HtmlMenuItemElement $($body)*);
-        $mac!(HtmlMetaElement $($body)*);
-        $mac!(HtmlMeterElement $($body)*);
-        $mac!(HtmlModElement $($body)*);
-        $mac!(HtmlObjectElement $($body)*);
-        $mac!(HtmlOListElement $($body)*);
-        $mac!(HtmlOptGroupElement $($body)*);
-        $mac!(HtmlOptionElement $($body)*);
-        $mac!(HtmlOutputElement $($body)*);
-        $mac!(HtmlParagraphElement $($body)*);
-        $mac!(HtmlParamElement $($body)*);
-        $mac!(HtmlPictureElement $($body)*);
-        $mac!(HtmlPreElement $($body)*);
-        $mac!(HtmlProgressElement $($body)*);
-        $mac!(HtmlQuoteElement $($body)*);
-        $mac!(HtmlScriptElement $($body)*);
-        $mac!(HtmlSelectElement $($body)*);
-        $mac!(HtmlSlotElement $($body)*);
-        $mac!(HtmlSourceElement $($body)*);
-        $mac!(HtmlSpanElement $($body)*);
-        $mac!(HtmlStyleElement $($body)*);
-        $mac!(HtmlTableCaptionElement $($body)*);
-        $mac!(HtmlTableCellElement $($body)*);
-        $mac!(HtmlTableColElement $($body)*);
-        $mac!(HtmlTableElement $($body)*);
-        $mac!(HtmlTableRowElement $($body)*);
-        $mac!(HtmlTableSectionElement $($body)*);
-        $mac!(HtmlTemplateElement $($body)*);
-        $mac!(HtmlTimeElement $($body)*);
-        $mac!(HtmlTextAreaElement $($body)*);
-        $mac!(HtmlTitleElement $($body)*);
-        $mac!(HtmlTrackElement $($body)*);
-        $mac!(HtmlUListElement $($body)*);
-        $mac!(HtmlVideoElement $($body)*);
-    }
-}

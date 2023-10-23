@@ -3,12 +3,11 @@ use std::borrow::Cow;
 use xilem_core::{Id, MessageResult};
 
 use crate::{
-    for_all_dom_interfaces,
     interfaces::{HtmlElement, HtmlMediaElement, HtmlVideoElement},
     AttributeValue, ChangeFlags, Cx, View, ViewMarker,
 };
 
-use super::interfaces::Element;
+use super::interfaces::{for_all_dom_interfaces, Element};
 
 #[derive(PartialEq, Clone, Debug, PartialOrd)]
 pub enum HtmlMediaElementAttr {
@@ -105,10 +104,11 @@ impl<T, A, E: Element<T, A>> View<T, A> for HtmlVideoElementWidth<E> {
     type Element = E::Element;
 
     fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
-        cx.add_new_attribute_to_current_element(
-            &Cow::from("width"),
-            &Some(AttributeValue::U32(self.value)),
-        );
+        // TODO only relevant in SSR contexts
+        // cx.add_new_attribute_to_current_element(
+        //     &Cow::from("width"),
+        //     &Some(AttributeValue::U32(self.value)),
+        // );
         cx.add_new_dom_attribute_to_current_element(
             |a| matches!(a, DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(_))),
             &DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(self.value)),
@@ -124,7 +124,7 @@ impl<T, A, E: Element<T, A>> View<T, A> for HtmlVideoElementWidth<E> {
         state: &mut Self::State,
         element: &mut Self::Element,
     ) -> ChangeFlags {
-        // TODO is this necessary when using the DOM attribute (outside of SSR contexts)?
+        // TODO only relevant in SSR contexts
         // cx.add_new_attribute_to_current_element(
         //     &Cow::from("width"),
         //     &Some(AttributeValue::U32(self.value)),

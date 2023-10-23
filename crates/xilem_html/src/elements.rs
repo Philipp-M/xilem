@@ -8,7 +8,7 @@ use crate::{
     Cx, DomAttr, HtmlMediaElementAttr, Pod, View, ViewMarker, ViewSequence,
 };
 
-use super::interfaces::{Element, HtmlElement};
+use super::interfaces::{for_all_dom_interface_relatives, Element, HtmlElement};
 
 type CowStr = std::borrow::Cow<'static, str>;
 
@@ -159,38 +159,14 @@ impl<T, A, Children: ViewSequence<T, A>> Element<T, A> for CustomElement<T, A, C
 impl<T, A, Children: ViewSequence<T, A>> HtmlElement<T, A> for CustomElement<T, A, Children> {}
 
 macro_rules! generate_dom_interface_impl {
-    ($ty_name:ident, $name:ident, $t:ident, $a:ident, $vs:ident, $dom_interface:ident) => {
-        generate_dom_interface_impl!($ty_name, $name, $t, $a, $vs, $dom_interface, {});
+    ($dom_interface:ident, $ty_name:ident, $name:ident, $t:ident, $a:ident, $vs:ident) => {
+        generate_dom_interface_impl!($dom_interface, $ty_name, $name, $t, $a, $vs, {});
     };
-    ($ty_name:ident, $name:ident, $t:ident, $a:ident, $vs:ident, $dom_interface:ident, $body: tt) => {
+    ($dom_interface:ident, $ty_name:ident, $name:ident, $t:ident, $a:ident, $vs:ident, $body: tt) => {
         impl<$t, $a, $vs> crate::interfaces::$dom_interface<$t, $a> for $ty_name<$t, $a, $vs>
         where
             $vs: crate::view::ViewSequence<$t, $a>,
         $body
-    };
-}
-
-macro_rules! impl_html_dom_interface {
-    ($ty_name: ident, $name: ident, $t: ident, $a:ident, $vs:ident, Element) => {
-        generate_dom_interface_impl!($ty_name, $name, $t, $a, $vs, Element);
-    };
-    ($ty_name: ident, $name: ident, $t: ident, $a:ident, $vs:ident, HtmlElement) => {
-        impl_html_dom_interface!($ty_name, $name, $t, $a, $vs, Element);
-        generate_dom_interface_impl!($ty_name, $name, $t, $a, $vs, HtmlElement);
-    };
-    ($ty_name: ident, $name: ident, $t: ident, $a:ident, $vs:ident, HtmlAudioElement) => {
-        impl_html_dom_interface!($ty_name, $name, $t, $a, $vs, HtmlMediaElement);
-        generate_dom_interface_impl!($ty_name, $name, $t, $a, $vs, HtmlAudioElement);
-    };
-    ($ty_name: ident, $name: ident, $t: ident, $a:ident, $vs:ident, HtmlVideoElement) => {
-        impl_html_dom_interface!($ty_name, $name, $t, $a, $vs, HtmlMediaElement);
-        generate_dom_interface_impl!($ty_name, $name, $t, $a, $vs, HtmlVideoElement);
-    };
-    // TODO resolve super interface correctly
-    // All remaining interfaces inherit directly from HtmlElement
-    ($ty_name: ident, $name: ident, $t: ident, $a:ident, $vs:ident, $dom_interface: ident) => {
-        impl_html_dom_interface!($ty_name, $name, $t, $a, $vs, HtmlElement);
-        generate_dom_interface_impl!($ty_name, $name, $t, $a, $vs, $dom_interface);
     };
 }
 
@@ -326,7 +302,7 @@ macro_rules! define_html_element {
             $ty_name(children, PhantomData)
         }
 
-        impl_html_dom_interface!($ty_name, $name, $t, $a, $vs, $dom_interface);
+        for_all_dom_interface_relatives!($dom_interface, generate_dom_interface_impl, $ty_name, $name, $t, $a, $vs);
     };
 }
 
@@ -442,6 +418,14 @@ define_html_elements!(
                     } else {
                         el.pause().unwrap_throw();
                     }
+                    ChangeFlags::OTHER_CHANGE
+                }
+                (
+                    DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(_old_width)),
+                    DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(new_width)),
+                ) => {
+                    web_sys::console::log_1(&format!("video element setting width {new_width}").into());
+                    el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw().set_width(*new_width);
                     ChangeFlags::OTHER_CHANGE
                 }
                 _ => ChangeFlags::empty(),

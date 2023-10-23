@@ -1,6 +1,7 @@
 use crate::{
-    for_all_dom_interfaces, interfaces::Element, view::DomNode, ChangeFlags, Cx, OptionalAction,
-    View, ViewMarker,
+    interfaces::{for_all_dom_interfaces, Element},
+    view::DomNode,
+    ChangeFlags, Cx, OptionalAction, View, ViewMarker,
 };
 use std::{any::Any, borrow::Cow, marker::PhantomData};
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
@@ -173,14 +174,15 @@ where
 
 macro_rules! impl_dom_interface_for_event_listener {
     ($dom_interface:ident) => {
-            impl<T, A, E, Ev, F, OA> $crate::interfaces::$dom_interface<T, A> for EventListener<E, Ev, F>
-            where
-                F: Fn(&mut T, Ev) -> OA,
-                E: $crate::interfaces::$dom_interface<T, A>,
-                Ev: JsCast + 'static,
-                OA: OptionalAction<A>,
-            {
-            }
+        impl<T, A, E, Ev, F, OA> $crate::interfaces::$dom_interface<T, A>
+            for EventListener<E, Ev, F>
+        where
+            F: Fn(&mut T, Ev) -> OA,
+            E: $crate::interfaces::$dom_interface<T, A>,
+            Ev: JsCast + 'static,
+            OA: OptionalAction<A>,
+        {
+        }
     };
 }
 

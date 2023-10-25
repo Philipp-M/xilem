@@ -13,6 +13,7 @@ mod attribute_value;
 mod cached;
 mod context;
 mod diff;
+mod dom_attribute;
 pub mod elements;
 pub mod events;
 pub mod interfaces;
@@ -25,7 +26,7 @@ mod view_ext;
 pub use xilem_core::MessageResult;
 
 pub use app::App;
-pub use attribute::{Attr, DomAttr, HtmlMediaElementAttr, HtmlMediaElementPlay};
+pub use attribute::Attr;
 pub use attribute_value::{AttributeValue, IntoAttributeValue};
 pub use cached::{cached, memoize, s, Cached};
 pub use context::{ChangeFlags, Cx};

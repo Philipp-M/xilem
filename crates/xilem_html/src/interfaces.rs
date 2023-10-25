@@ -1,4 +1,10 @@
-use crate::{attribute::HtmlVideoElementWidth, HtmlMediaElementPlay, View, ViewMarker};
+use crate::{
+    elements::{
+        html_media_element::{HtmlMediaElementPlay, HtmlMediaElementPlaybackRate},
+        html_video_element::{HtmlVideoElementWidth, HtmlVideoElementHeight},
+    },
+    View, ViewMarker,
+};
 use std::borrow::Cow;
 
 use gloo::events::EventListenerOptions;
@@ -193,7 +199,7 @@ macro_rules! dom_interface_macro_and_trait_definitions {
             };
             $(($dom_interface, $mac:ident $dollar($body_:tt)*) => {
                 $mac!($dom_interface $dollar($body_)*);
-                for_all_dom_interface_relatives!($super_dom_interface, $mac $dollar($body_)*);
+                $crate::interfaces::for_all_dom_interface_relatives!($super_dom_interface, $mac $dollar($body_)*);
              };)*
         }
 
@@ -260,6 +266,9 @@ dom_interface_macro_and_trait_definitions!($,
         fn play(self, value: bool) -> HtmlMediaElementPlay<Self> {
             HtmlMediaElementPlay::new(self, value)
         }
+        fn playback_rate(self, value: f64) -> HtmlMediaElementPlaybackRate<Self> {
+            HtmlMediaElementPlaybackRate::new(self, value)
+        }
     },
     HtmlMenuElement : HtmlElement {},
     HtmlMenuItemElement : HtmlElement {},
@@ -298,6 +307,9 @@ dom_interface_macro_and_trait_definitions!($,
     HtmlVideoElement : HtmlMediaElement {
         fn width(self, value: u32) -> HtmlVideoElementWidth<Self> {
             HtmlVideoElementWidth::new(self, value)
+        }
+        fn height(self, value: u32) -> HtmlVideoElementHeight<Self> {
+            HtmlVideoElementHeight::new(self, value)
         }
     }
 );

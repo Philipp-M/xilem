@@ -9,8 +9,9 @@ use xilem_core::{Id, IdPath};
 use crate::{
     app::AppRunner,
     diff::{diff_kv_iterables, Diff},
+    dom_attribute::DomAttr,
     vecmap::VecMap,
-    AttributeValue, DomAttr, Message, HTML_NS, SVG_NS,
+    AttributeValue, Message, HTML_NS, SVG_NS,
 };
 
 type CowStr = std::borrow::Cow<'static, str>;

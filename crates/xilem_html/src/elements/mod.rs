@@ -1,11 +1,14 @@
+pub mod html_media_element;
+pub mod html_video_element;
+
 use std::marker::PhantomData;
 
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult, VecSplice};
 
 use crate::{
-    attribute::HtmlVideoElementAttr, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags,
-    Cx, DomAttr, HtmlMediaElementAttr, Pod, View, ViewMarker, ViewSequence,
+    dom_attribute::DomAttr, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, Pod,
+    View, ViewMarker, ViewSequence,
 };
 
 use super::interfaces::{for_all_dom_interface_relatives, Element, HtmlElement};
@@ -384,54 +387,7 @@ define_html_elements!(
     (Img, img, HtmlImageElement),
     (Map, map, HtmlMapElement),
     (Track, track, HtmlTrackElement),
-    (
-        Video,
-        video,
-        HtmlVideoElement,
-        build_fn: {
-            |el, attr| match attr {
-                DomAttr::HtmlMediaElement(HtmlMediaElementAttr::Play(play)) => {
-                    if *play {
-                        let _ = el
-                            .dyn_ref::<web_sys::HtmlMediaElement>()
-                            .unwrap_throw()
-                            .play()
-                            .unwrap_throw();
-                    }
-                }
-                DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(width)) => {
-                    web_sys::console::log_1(&format!("video element setting width {width}").into());
-                    el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw().set_width(*width);
-                }
-                _ => unreachable!(),
-            }
-        },
-        rebuild_fn: {
-            |el, old, new| match (old, new) {
-                (
-                    DomAttr::HtmlMediaElement(HtmlMediaElementAttr::Play(old_play)),
-                    DomAttr::HtmlMediaElement(HtmlMediaElementAttr::Play(new_play)),
-                ) if old_play != new_play => {
-                    let el = el.dyn_ref::<web_sys::HtmlMediaElement>().unwrap_throw();
-                    if *new_play {
-                        let _ = el.play().unwrap_throw();
-                    } else {
-                        el.pause().unwrap_throw();
-                    }
-                    ChangeFlags::OTHER_CHANGE
-                }
-                (
-                    DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(_old_width)),
-                    DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(new_width)),
-                ) => {
-                    web_sys::console::log_1(&format!("video element setting width {new_width}").into());
-                    el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw().set_width(*new_width);
-                    ChangeFlags::OTHER_CHANGE
-                }
-                _ => ChangeFlags::empty(),
-            }
-        }
-    ),
+    (Video, video, HtmlVideoElement, build_fn: {html_video_element::video_element_build_extra}, rebuild_fn: {html_video_element::video_element_rebuild_extra}),
     // embedded content
     (Embed, embed, HtmlEmbedElement),
     (Iframe, iframe, HtmlIFrameElement),

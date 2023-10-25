@@ -21,78 +21,173 @@ gloo = { version = "0.8.1", default-features = false, features = ["events", "uti
 
 # TODO make all or most of the extra elements and events optional via a feature
 # I think that at least HtmlElement + SvgElement (and the parent dom interfaces) should be enabled by default
-# possibly all web_sys elements, but that needs careful benching/investigation etc.
+# possibly all web-sys elements, but that needs careful benching/investigation etc.
 [dependencies.web-sys]
 version = "0.3.4"
 features = [
-    "console",
-    "Document",
-    "Element",
-    "Event",
-    "HtmlElement",
-    "Node",
-    "NodeList",
-    "SvgElement",
-    "Text",
-    "Window",
-    "FocusEvent",
-    "HtmlAnchorElement",
-    "HtmlAreaElement",
-    "HtmlAudioElement",
-    "HtmlBrElement",
-    "HtmlButtonElement",
-    "HtmlCanvasElement",
-    "HtmlDataElement",
-    "HtmlDataListElement",
-    "HtmlDetailsElement",
-    "HtmlDialogElement",
-    "HtmlDivElement",
-    "HtmlDListElement",
-    "HtmlEmbedElement",
-    "HtmlFieldSetElement",
-    "HtmlFormElement",
-    "HtmlHeadingElement",
-    "HtmlHrElement",
-    "HtmlIFrameElement",
-    "HtmlImageElement",
-    "HtmlInputElement",
-    "HtmlLabelElement",
-    "HtmlLegendElement",
-    "HtmlLiElement",
-    "HtmlMapElement",
-    "HtmlMenuElement",
-    "HtmlMeterElement",
-    "HtmlModElement",
-    "HtmlObjectElement",
-    "HtmlOListElement",
-    "HtmlOptGroupElement",
-    "HtmlOptionElement",
-    "HtmlOutputElement",
-    "HtmlParagraphElement",
-    "HtmlPictureElement",
-    "HtmlPreElement",
-    "HtmlProgressElement",
-    "HtmlQuoteElement",
-    "HtmlScriptElement",
-    "HtmlSelectElement",
-    "HtmlSlotElement",
-    "HtmlSourceElement",
-    "HtmlSpanElement",
-    "HtmlTableElement",
-    "HtmlTableCellElement",
-    "HtmlTableColElement",
-    "HtmlTableCaptionElement",
-    "HtmlTableRowElement",
-    "HtmlTableSectionElement",
-    "HtmlTemplateElement",
-    "HtmlTextAreaElement",
-    "HtmlTimeElement",
-    "HtmlTrackElement",
-    "HtmlUListElement",
-    "HtmlVideoElement",
-    "InputEvent",
-    "KeyboardEvent",
-    "MouseEvent",
-    "PointerEvent",
-    "WheelEvent"
+  "console",
+  "Document",
+  "Element",
+  "Event",
+  "HtmlElement",
+  "Node",
+  "NodeList",
+  "SvgElement",
+  "Text",
+  "Window",
+  "FocusEvent",
+  "HtmlInputElement",
+  "InputEvent",
+  "KeyboardEvent",
+  "MouseEvent",
+  "PointerEvent",
+  "WheelEvent",
+]
+
+# TODO autogenerate these features and their dependencies? Probably not worth it...
+[features]
+HtmlElement = []
+HtmlAnchorElement = ["HtmlElement", "web-sys/HtmlAnchorElement"]
+HtmlAreaElement = ["HtmlElement", "web-sys/HtmlAreaElement"]
+HtmlAudioElement = ["HtmlMediaElement", "web-sys/HtmlAudioElement"]
+HtmlBaseElement = ["HtmlElement", "web-sys/HtmlBaseElement"]
+HtmlBodyElement = ["HtmlElement", "web-sys/HtmlBodyElement"]
+HtmlBrElement = ["HtmlElement", "web-sys/HtmlBrElement"]
+HtmlButtonElement = ["HtmlElement", "web-sys/HtmlButtonElement"]
+HtmlCanvasElement = ["HtmlElement", "web-sys/HtmlCanvasElement"]
+HtmlDataElement = ["HtmlElement", "web-sys/HtmlDataElement"]
+HtmlDataListElement = ["HtmlElement", "web-sys/HtmlDataListElement"]
+HtmlDetailsElement = ["HtmlElement", "web-sys/HtmlDetailsElement"]
+HtmlDialogElement = ["HtmlElement", "web-sys/HtmlDialogElement"]
+HtmlDirectoryElement = ["HtmlElement", "web-sys/HtmlDirectoryElement"]
+HtmlDivElement = ["HtmlElement", "web-sys/HtmlDivElement"]
+HtmlDListElement = ["HtmlElement", "web-sys/HtmlDListElement"]
+HtmlUnknownElement = ["HtmlElement", "web-sys/HtmlUnknownElement"]
+HtmlEmbedElement = ["HtmlElement", "web-sys/HtmlEmbedElement"]
+HtmlFieldSetElement = ["HtmlElement", "web-sys/HtmlFieldSetElement"]
+HtmlFontElement = ["HtmlElement", "web-sys/HtmlFontElement"]
+HtmlFormElement = ["HtmlElement", "web-sys/HtmlFormElement"]
+HtmlFrameElement = ["HtmlElement", "web-sys/HtmlFrameElement"]
+HtmlFrameSetElement = ["HtmlElement", "web-sys/HtmlFrameSetElement"]
+HtmlHeadElement = ["HtmlElement", "web-sys/HtmlHeadElement"]
+HtmlHeadingElement = ["HtmlElement", "web-sys/HtmlHeadingElement"]
+HtmlHrElement = ["HtmlElement", "web-sys/HtmlHrElement"]
+HtmlHtmlElement = ["HtmlElement", "web-sys/HtmlHtmlElement"]
+HtmlIFrameElement = ["HtmlElement", "web-sys/HtmlIFrameElement"]
+HtmlImageElement = ["HtmlElement", "web-sys/HtmlImageElement"]
+HtmlInputElement = ["HtmlElement", "web-sys/HtmlInputElement"]
+HtmlLabelElement = ["HtmlElement", "web-sys/HtmlLabelElement"]
+HtmlLegendElement = ["HtmlElement", "web-sys/HtmlLegendElement"]
+HtmlLiElement = ["HtmlElement", "web-sys/HtmlLiElement"]
+HtmlLinkElement = ["HtmlElement", "web-sys/HtmlLinkElement"]
+HtmlMapElement = ["HtmlElement", "web-sys/HtmlMapElement"]
+HtmlMediaElement = ["HtmlElement", "web-sys/HtmlMediaElement"]
+HtmlMenuElement = ["HtmlElement", "web-sys/HtmlMenuElement"]
+HtmlMenuItemElement = ["HtmlElement", "web-sys/HtmlMenuItemElement"]
+HtmlMetaElement = ["HtmlElement", "web-sys/HtmlMetaElement"]
+HtmlMeterElement = ["HtmlElement", "web-sys/HtmlMeterElement"]
+HtmlModElement = ["HtmlElement", "web-sys/HtmlModElement"]
+HtmlObjectElement = ["HtmlElement", "web-sys/HtmlObjectElement"]
+HtmlOListElement = ["HtmlElement", "web-sys/HtmlOListElement"]
+HtmlOptGroupElement = ["HtmlElement", "web-sys/HtmlOptGroupElement"]
+HtmlOptionElement = ["HtmlElement", "web-sys/HtmlOptionElement"]
+HtmlOutputElement = ["HtmlElement", "web-sys/HtmlOutputElement"]
+HtmlParagraphElement = ["HtmlElement", "web-sys/HtmlParagraphElement"]
+HtmlParamElement = ["HtmlElement", "web-sys/HtmlParamElement"]
+HtmlPictureElement = ["HtmlElement", "web-sys/HtmlPictureElement"]
+HtmlPreElement = ["HtmlElement", "web-sys/HtmlPreElement"]
+HtmlProgressElement = ["HtmlElement", "web-sys/HtmlProgressElement"]
+HtmlQuoteElement = ["HtmlElement", "web-sys/HtmlQuoteElement"]
+HtmlScriptElement = ["HtmlElement", "web-sys/HtmlScriptElement"]
+HtmlSelectElement = ["HtmlElement", "web-sys/HtmlSelectElement"]
+HtmlSlotElement = ["HtmlElement", "web-sys/HtmlSlotElement"]
+HtmlSourceElement = ["HtmlElement", "web-sys/HtmlSourceElement"]
+HtmlSpanElement = ["HtmlElement", "web-sys/HtmlSpanElement"]
+HtmlStyleElement = ["HtmlElement", "web-sys/HtmlStyleElement"]
+HtmlTableCaptionElement = ["HtmlElement", "web-sys/HtmlTableCaptionElement"]
+HtmlTableCellElement = ["HtmlElement", "web-sys/HtmlTableCellElement"]
+HtmlTableColElement = ["HtmlElement", "web-sys/HtmlTableColElement"]
+HtmlTableElement = ["HtmlElement", "web-sys/HtmlTableElement"]
+HtmlTableRowElement = ["HtmlElement", "web-sys/HtmlTableRowElement"]
+HtmlTableSectionElement = ["HtmlElement", "web-sys/HtmlTableSectionElement"]
+HtmlTemplateElement = ["HtmlElement", "web-sys/HtmlTemplateElement"]
+HtmlTimeElement = ["HtmlElement", "web-sys/HtmlTimeElement"]
+HtmlTextAreaElement = ["HtmlElement", "web-sys/HtmlTextAreaElement"]
+HtmlTitleElement = ["HtmlElement", "web-sys/HtmlTitleElement"]
+HtmlTrackElement = ["HtmlElement", "web-sys/HtmlTrackElement"]
+HtmlUListElement = ["HtmlElement", "web-sys/HtmlUListElement"]
+HtmlVideoElement = ["HtmlMediaElement", "web-sys/HtmlVideoElement"]
+
+typed = [
+  "HtmlElement",
+  "HtmlAnchorElement",
+  "HtmlAreaElement",
+  "HtmlAudioElement",
+  "HtmlBaseElement",
+  "HtmlBodyElement",
+  "HtmlBrElement",
+  "HtmlButtonElement",
+  "HtmlCanvasElement",
+  "HtmlDataElement",
+  "HtmlDataListElement",
+  "HtmlDetailsElement",
+  "HtmlDialogElement",
+  "HtmlDirectoryElement",
+  "HtmlDivElement",
+  "HtmlDListElement",
+  "HtmlUnknownElement",
+  "HtmlEmbedElement",
+  "HtmlFieldSetElement",
+  "HtmlFontElement",
+  "HtmlFormElement",
+  "HtmlFrameElement",
+  "HtmlFrameSetElement",
+  "HtmlHeadElement",
+  "HtmlHeadingElement",
+  "HtmlHrElement",
+  "HtmlHtmlElement",
+  "HtmlIFrameElement",
+  "HtmlImageElement",
+  "HtmlInputElement",
+  "HtmlLabelElement",
+  "HtmlLegendElement",
+  "HtmlLiElement",
+  "HtmlLinkElement",
+  "HtmlMapElement",
+  "HtmlMediaElement",
+  "HtmlMenuElement",
+  "HtmlMenuItemElement",
+  "HtmlMetaElement",
+  "HtmlMeterElement",
+  "HtmlModElement",
+  "HtmlObjectElement",
+  "HtmlOListElement",
+  "HtmlOptGroupElement",
+  "HtmlOptionElement",
+  "HtmlOutputElement",
+  "HtmlParagraphElement",
+  "HtmlParamElement",
+  "HtmlPictureElement",
+  "HtmlPreElement",
+  "HtmlProgressElement",
+  "HtmlQuoteElement",
+  "HtmlScriptElement",
+  "HtmlSelectElement",
+  "HtmlSlotElement",
+  "HtmlSourceElement",
+  "HtmlSpanElement",
+  "HtmlStyleElement",
+  "HtmlTableCaptionElement",
+  "HtmlTableCellElement",
+  "HtmlTableColElement",
+  "HtmlTableElement",
+  "HtmlTableRowElement",
+  "HtmlTableSectionElement",
+  "HtmlTemplateElement",
+  "HtmlTimeElement",
+  "HtmlTextAreaElement",
+  "HtmlTitleElement",
+  "HtmlTrackElement",
+  "HtmlUListElement",
+  "HtmlVideoElement",
 ]

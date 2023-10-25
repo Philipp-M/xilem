@@ -1,9 +1,11 @@
+#[cfg(feature = "HtmlMediaElement")]
 #[derive(PartialEq, Clone, Debug, PartialOrd)]
 pub enum HtmlMediaElementAttr {
     Play(bool),
     PlaybackRate(f64),
 }
 
+#[cfg(feature = "HtmlVideoElement")]
 #[derive(PartialEq, Clone, Debug, PartialOrd)]
 pub enum HtmlVideoElementAttr {
     Width(u32),
@@ -12,11 +14,14 @@ pub enum HtmlVideoElementAttr {
 
 #[derive(PartialEq, Clone, Debug, PartialOrd)]
 pub enum DomAttr {
+    #[cfg(feature = "HtmlMediaElement")]
     HtmlMediaElement(HtmlMediaElementAttr),
+    #[cfg(feature = "HtmlVideoElement")]
     HtmlVideoElement(HtmlVideoElementAttr),
 }
 
 // not having the descendant dom interface parameter, would make this macro vastly more complex (needs probably proc-macros)
+#[allow(unused)]
 macro_rules! create_dom_attribute_view {
     ($attribute:ident, $value_type:ty, $dom_interface:ident) => {
         create_dom_attribute_view!($attribute, $value_type, $dom_interface: {});
@@ -45,8 +50,11 @@ macro_rules! create_dom_attribute_view {
         $crate::interfaces::for_all_dom_interface_relatives!($dom_interface, [<generate_dom_interface_impl_for_ $dom_interface:snake _ $attribute:snake>]);
 
         $(
+        paste::paste! {
+        #[cfg(feature = "" $descendant_dom_interface "")]
         impl<T, A, E: $crate::interfaces::$descendant_dom_interface<T, A>> $crate::interfaces::$descendant_dom_interface<T, A> for
             [<$dom_interface $attribute:camel>]<E> {}
+        }
         )*
 
         impl<E> $crate::ViewMarker for [<$dom_interface $attribute:camel>]<E> {}
@@ -102,4 +110,5 @@ macro_rules! create_dom_attribute_view {
     };
 }
 
+#[allow(unused)]
 pub(crate) use create_dom_attribute_view;

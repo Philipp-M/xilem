@@ -145,6 +145,7 @@ impl Cx {
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn add_new_dom_attribute_to_current_element(
         &mut self,
         // TODO function pointer or static impl Fn()?
@@ -168,6 +169,7 @@ impl Cx {
         attributes
     }
 
+    #[allow(unused)]
     pub(crate) fn apply_dom_attributes(
         &mut self,
         element: &web_sys::Element,
@@ -182,6 +184,7 @@ impl Cx {
         attributes
     }
 
+    #[allow(unused)]
     pub(crate) fn apply_dom_attribute_changes(
         &mut self,
         element: &web_sys::Element,

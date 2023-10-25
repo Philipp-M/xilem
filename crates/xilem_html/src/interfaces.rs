@@ -1,10 +1,8 @@
-use crate::{
-    elements::{
-        html_media_element::{HtmlMediaElementPlay, HtmlMediaElementPlaybackRate},
-        html_video_element::{HtmlVideoElementWidth, HtmlVideoElementHeight},
-    },
-    View, ViewMarker,
-};
+#[cfg(feature = "HtmlMediaElement")]
+use crate::elements::html_media_element::{HtmlMediaElementPlay, HtmlMediaElementPlaybackRate};
+#[cfg(feature = "HtmlVideoElement")]
+use crate::elements::html_video_element::{HtmlVideoElementHeight, HtmlVideoElementWidth};
+use crate::{View, ViewMarker};
 use std::borrow::Cow;
 
 use gloo::events::EventListenerOptions;
@@ -189,9 +187,16 @@ where
 macro_rules! dom_interface_macro_and_trait_definitions {
     // $dollar workaround for not yet stabilized feature 'macro_metavar_expr'
     ($dollar:tt, $($dom_interface:ident : $super_dom_interface: ident $body: tt),*) => {
-        $(pub trait $dom_interface<T, A = ()>: $super_dom_interface<T, A> $body)*
+        paste::paste! {
+        $(
+        #[cfg(feature = "" $dom_interface "")]
+        pub trait $dom_interface<T, A = ()>: $super_dom_interface<T, A> $body
+        )*
+        }
 
-        // TODO different name for relatives??
+        #[doc="Execute $mac which is a macro, that takes at least the $dom_interface:ident as parameter for all interface relatives."]
+        #[doc="For example for_all_dom_interface_relatives(HtmlVideoElement, my_mac, ...) invocates my_mac!(HtmlVideoElement, ...), my_mac!(HtmlMediaElement, ...), my_mac!(HtmlElement, ...) and my_mac!(Element, ...)"]
+        #[doc="It optionally passes arguments given to for_all_dom_interface_relatives! to $mac!"]
         macro_rules! for_all_dom_interface_relatives {
             // base case, Element is the root interface for all kinds of DOM interfaces
             (Element, $mac:ident $dollar($body_:tt)*) => {
@@ -205,10 +210,17 @@ macro_rules! dom_interface_macro_and_trait_definitions {
 
         pub(crate) use for_all_dom_interface_relatives;
 
+        #[doc="Execute $mac which is a macro, that takes at least the $dom_interface:ident as parameter, for all dom interfaces."]
+        #[doc="It optionally passes arguments given to for_all_dom_interfaces! to $mac!"]
         macro_rules! for_all_dom_interfaces {
             ($mac:ident $dollar($body_:tt)*) => {
                 $mac!(Element $dollar($body_)*);
-                $($mac!($dom_interface $dollar($body_)*);)*
+                paste::paste! {
+                $(
+                #[cfg(feature = "" $dom_interface "")]
+                $mac!($dom_interface $dollar($body_)*);
+                )*
+                }
             }
         }
 

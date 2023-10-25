@@ -1,4 +1,6 @@
+#[cfg(feature = "HtmlMediaElement")]
 pub mod html_media_element;
+#[cfg(feature = "HtmlVideoElement")]
 pub mod html_video_element;
 
 use std::marker::PhantomData;
@@ -6,12 +8,15 @@ use std::marker::PhantomData;
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult, VecSplice};
 
+#[allow(unused)]
 use crate::{
     dom_attribute::DomAttr, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, Pod,
     View, ViewMarker, ViewSequence,
 };
 
-use super::interfaces::{for_all_dom_interface_relatives, Element, HtmlElement};
+#[cfg(feature = "HtmlElement")]
+use super::interfaces::HtmlElement;
+use super::interfaces::{for_all_dom_interface_relatives, Element};
 
 type CowStr = std::borrow::Cow<'static, str>;
 
@@ -21,6 +26,7 @@ type CowStr = std::borrow::Cow<'static, str>;
 pub struct ElementState<ViewSeqState, DA = ()> {
     pub(crate) children_states: ViewSeqState,
     pub(crate) attributes: VecMap<CowStr, AttributeValue>,
+    #[allow(unused)]
     pub(crate) dom_attributes: DA,
     pub(crate) child_elements: Vec<Pod>,
     pub(crate) scratch: Vec<Pod>,
@@ -63,7 +69,10 @@ where
 
     // This is mostly intended for Autonomous custom elements,
     // TODO: Custom builtin components need some special handling (`document.createElement("p", { is: "custom-component" })`)
+    #[cfg(feature = "HtmlElement")]
     type Element = web_sys::HtmlElement;
+    #[cfg(not(feature = "HtmlElement"))]
+    type Element = web_sys::Element;
 
     fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
         let el = cx.create_html_element(&self.name);
@@ -159,34 +168,69 @@ where
 }
 
 impl<T, A, Children: ViewSequence<T, A>> Element<T, A> for CustomElement<T, A, Children> {}
+#[cfg(feature = "HtmlElement")]
 impl<T, A, Children: ViewSequence<T, A>> HtmlElement<T, A> for CustomElement<T, A, Children> {}
 
 macro_rules! generate_dom_interface_impl {
     ($dom_interface:ident, $ty_name:ident, $name:ident, $t:ident, $a:ident, $vs:ident) => {
         generate_dom_interface_impl!($dom_interface, $ty_name, $name, $t, $a, $vs, {});
     };
+    // handle Element extra, since this isn't feature gated (enabled by default)
+    (Element, $ty_name:ident, $name:ident, $t:ident, $a:ident, $vs:ident, $body: tt) => {
+        impl<$t, $a, $vs> crate::interfaces::Element<$t, $a> for $ty_name<$t, $a, $vs>
+        where
+            $vs: crate::view::ViewSequence<$t, $a>,
+        $body
+    };
     ($dom_interface:ident, $ty_name:ident, $name:ident, $t:ident, $a:ident, $vs:ident, $body: tt) => {
+        paste::paste! {
+        #[cfg(feature = "" $dom_interface "")]
         impl<$t, $a, $vs> crate::interfaces::$dom_interface<$t, $a> for $ty_name<$t, $a, $vs>
         where
             $vs: crate::view::ViewSequence<$t, $a>,
         $body
+        }
     };
 }
 
 // because of macro hygiene, it's necessary to wrap this in extra macros
 macro_rules! build_extra {
-    ($context: expr, $el: expr,) => { () };
-    ($context: expr, $el: expr, $($build_fn:tt)*) => { $context.apply_dom_attributes(&$el, $($build_fn)*) };
+    ($dom_interface:ident, $context: expr, $el: expr,) => { () };
+    ($dom_interface:ident, $context: expr, $el: expr, $($build_fn:tt)*) => {{
+        paste::paste! {
+            #[cfg(feature = "" $dom_interface "")]
+            let dom_attributes = $context.apply_dom_attributes(&$el, $($build_fn)*);
+            #[cfg(not(feature = "" $dom_interface ""))]
+            let dom_attributes = ();
+            dom_attributes
+        }
+    }};
 }
+
 macro_rules! rebuild_extra {
-    ($context: expr, $el: expr, $changed: ident, $dom_attrs: expr,) => { };
-    ($context: expr, $el: expr, $changed: ident, $dom_attrs: expr, $($rebuild_fn:tt)*) => {
-        $changed |= $context.apply_dom_attribute_changes(&$el, &mut $dom_attrs, $($rebuild_fn)*);
+    ($dom_interface:ident, $context: expr, $el: expr, $changed: ident, $dom_attrs: expr,) => { };
+    ($dom_interface:ident, $context: expr, $el: expr, $changed: ident, $dom_attrs: expr, $($rebuild_fn:tt)*) => {
+        paste::paste! {
+        #[cfg(feature = "" $dom_interface "")]
+        {
+            $changed |= $context.apply_dom_attribute_changes(&$el, &mut $dom_attrs, $($rebuild_fn)*);
+        }
+        }
     };
 }
-macro_rules! dom_attrs_generic_param {
-    () => { () };
-    ($($_:tt)*) => { Vec<DomAttr> };
+
+macro_rules! element_state_associated_type {
+    ($dom_interface:ident, $vs:ident, ) => {
+        type State = ElementState<$vs::State>;
+    };
+    ($dom_interface:ident, $vs:ident, $($_:tt)*) => {
+        paste::paste! {
+        #[cfg(feature = "" $dom_interface "")]
+        type State = ElementState<$vs::State, Vec<DomAttr>>;
+        #[cfg(not(feature = "" $dom_interface ""))]
+        type State = ElementState<$vs::State>;
+        }
+    };
 }
 
 // TODO maybe it's possible to reduce even more in the impl function bodies and put into impl_functions
@@ -218,15 +262,21 @@ macro_rules! define_html_element {
         impl<$t, $a, $vs> ViewMarker for $ty_name<$t, $a, $vs> {}
 
         impl<$t, $a, $vs: ViewSequence<$t, $a>> View<$t, $a> for $ty_name<$t, $a, $vs> {
-            type State = ElementState<$vs::State, dom_attrs_generic_param!($($build_extra)*$($rebuild_extra)*)>;
+            element_state_associated_type!($dom_interface, $vs, $($build_extra)*$($rebuild_extra)*);
 
+            paste::paste! {
+            #[cfg(feature = "" $dom_interface "")]
             type Element = web_sys::$dom_interface;
+            #[cfg(not(feature = "" $dom_interface ""))]
+            type Element = web_sys::Element;
+            }
 
             fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
                 let el = cx.create_html_element(stringify!($name));
 
                 let attributes = cx.apply_attributes(&el);
-                let dom_attributes = build_extra!(cx, el, $($build_extra)*);
+
+                let dom_attributes = build_extra!($dom_interface, cx, el, $($build_extra)*);
 
                 let mut child_elements = vec![];
                 let (id, children_states) =
@@ -263,7 +313,7 @@ macro_rules! define_html_element {
                 let mut changed = ChangeFlags::empty();
 
                 changed |= cx.apply_attribute_changes(element, &mut state.attributes);
-                rebuild_extra!(cx, element, changed, state.dom_attributes, $($rebuild_extra)*);
+                rebuild_extra!($dom_interface, cx, element, changed, state.dom_attributes, $($rebuild_extra)*);
 
                 // update children
                 let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
@@ -309,13 +359,13 @@ macro_rules! define_html_element {
     };
 }
 
-macro_rules! define_html_elements {
+macro_rules! define_elements {
     ($($element_def:tt,)*) => {
         $(define_html_element!($element_def);)*
     };
 }
 
-define_html_elements!(
+define_elements!(
     // the order is copied from
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Element
     // DOM interfaces copied from https://html.spec.whatwg.org/multipage/grouping-content.html and friends

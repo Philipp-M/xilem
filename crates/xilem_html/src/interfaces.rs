@@ -2,7 +2,7 @@
 use crate::elements::html_media_element::{HtmlMediaElementPlay, HtmlMediaElementPlaybackRate};
 #[cfg(feature = "HtmlVideoElement")]
 use crate::elements::html_video_element::{HtmlVideoElementHeight, HtmlVideoElementWidth};
-use crate::{View, ViewMarker};
+use crate::{sealed::Sealed, View, ViewMarker};
 use std::borrow::Cow;
 
 use gloo::events::EventListenerOptions;
@@ -29,7 +29,7 @@ macro_rules! event_handler_mixin {
     };
 }
 
-pub trait Element<T, A = ()>: View<T, A> + ViewMarker
+pub trait Element<T, A = ()>: View<T, A> + ViewMarker + Sealed
 where
     Self: Sized,
 {

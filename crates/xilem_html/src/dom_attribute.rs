@@ -57,6 +57,7 @@ macro_rules! create_dom_attribute_view {
         }
         )*
 
+        impl<E> $crate::sealed::Sealed for [<$dom_interface $attribute:camel>]<E> {}
         impl<E> $crate::ViewMarker for [<$dom_interface $attribute:camel>]<E> {}
 
         impl<T, A, E: $crate::interfaces::$dom_interface<T, A>> $crate::View<T, A> for [<$dom_interface $attribute:camel>]<E> {

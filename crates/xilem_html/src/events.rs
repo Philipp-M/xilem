@@ -1,5 +1,6 @@
 use crate::{
     interfaces::{for_all_dom_interfaces, Element},
+    sealed::Sealed,
     view::DomNode,
     ChangeFlags, Cx, OptionalAction, View, ViewMarker,
 };
@@ -87,6 +88,7 @@ pub struct EventListenerState<S> {
 }
 
 impl<V, E, F> ViewMarker for EventListener<V, E, F> {}
+impl<V, E, F> Sealed for EventListener<V, E, F> {}
 
 impl<T, A, E, F, V, OA> View<T, A> for EventListener<V, E, F>
 where
@@ -127,11 +129,15 @@ where
         element: &mut Self::Element,
     ) -> ChangeFlags {
         cx.with_id(*id, |cx| {
-            let mut changed =
-                self.element
-                    .rebuild(cx, &prev.element, id, &mut state.child_state, element);
-            if state.child_id != *id {
-                state.child_id = *id;
+            let prev_child_id = state.child_id;
+            let mut changed = self.element.rebuild(
+                cx,
+                &prev.element,
+                &mut state.child_id,
+                &mut state.child_state,
+                element,
+            );
+            if state.child_id != prev_child_id {
                 changed |= ChangeFlags::OTHER_CHANGE;
             }
             // TODO check equality of prev and current element somehow
@@ -233,6 +239,7 @@ macro_rules! event_definitions {
         }
 
         impl<ET, C> ViewMarker for $ty_name<ET, C> {}
+        impl<ET, C> Sealed for $ty_name<ET, C> {}
 
         impl<T, A, C, ET, OA> View<T, A> for $ty_name<ET, C>
         where
@@ -262,7 +269,11 @@ macro_rules! event_definitions {
                 element: &mut Self::Element,
             ) -> ChangeFlags {
                 cx.with_id(*id, |cx| {
-                    let mut changed = self.target.rebuild(cx, &prev.target, id, &mut state.child_state, element);
+                    let prev_child_id = state.child_id;
+                    let mut changed = self.target.rebuild(cx, &prev.target, &mut state.child_id, &mut state.child_state, element);
+                    if state.child_id != prev_child_id {
+                        changed |= ChangeFlags::OTHER_CHANGE;
+                    }
                     // TODO check equality of prev and current element somehow
                     if changed.contains(ChangeFlags::STRUCTURE) {
                         state.listener = create_event_listener::<web_sys::$web_sys_ty>(element.as_node_ref(), $event_name, self.options, cx);

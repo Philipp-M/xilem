@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use xilem_core::{Id, MessageResult};
 
-use crate::{AttributeValue, ChangeFlags, Cx, View, ViewMarker};
+use crate::{sealed::Sealed, AttributeValue, ChangeFlags, Cx, View, ViewMarker};
 
 use super::interfaces::{for_all_dom_interfaces, Element};
 
@@ -13,6 +13,7 @@ pub struct Attr<E> {
 }
 
 impl<E> ViewMarker for Attr<E> {}
+impl<E> Sealed for Attr<E> {}
 
 impl<T, A, E: Element<T, A>> View<T, A> for Attr<E> {
     type State = E::State;

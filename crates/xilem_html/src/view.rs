@@ -8,22 +8,18 @@ use std::{any::Any, borrow::Cow, ops::Deref};
 
 use xilem_core::{Id, MessageResult};
 
-use crate::{context::Cx, ChangeFlags};
-
-mod sealed {
-    pub trait Sealed {}
-}
+use crate::{context::Cx, sealed::Sealed, ChangeFlags};
 
 // A possible refinement of xilem_core is to allow a single concrete type
 // for a view element, rather than an associated type with a bound.
 /// This trait is implemented for types that implement `AsRef<web_sys::Node>`.
 /// It is an implementation detail.
-pub trait DomNode: sealed::Sealed + 'static {
+pub trait DomNode: Sealed + 'static {
     fn into_pod(self) -> Pod;
     fn as_node_ref(&self) -> &web_sys::Node;
 }
 
-impl<N: AsRef<web_sys::Node> + 'static> sealed::Sealed for N {}
+impl<N: AsRef<web_sys::Node> + 'static> Sealed for N {}
 impl<N: AsRef<web_sys::Node> + 'static> DomNode for N {
     fn into_pod(self) -> Pod {
         Pod(Box::new(self))
@@ -36,7 +32,7 @@ impl<N: AsRef<web_sys::Node> + 'static> DomNode for N {
 
 /// A trait for types that can be type-erased and impl `AsRef<Node>`. It is an
 /// implementation detail.
-pub trait AnyNode: sealed::Sealed {
+pub trait AnyNode: Sealed {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     fn as_node_ref(&self) -> &web_sys::Node;
@@ -52,7 +48,7 @@ impl<N: AsRef<web_sys::Node> + Any> AnyNode for N {
     }
 }
 
-impl sealed::Sealed for Box<dyn AnyNode> {}
+impl Sealed for Box<dyn AnyNode> {}
 impl DomNode for Box<dyn AnyNode> {
     fn into_pod(self) -> Pod {
         Pod(self)

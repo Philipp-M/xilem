@@ -8,6 +8,7 @@ use std::marker::PhantomData;
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult, VecSplice};
 
+use crate::sealed::Sealed;
 #[allow(unused)]
 use crate::{
     dom_attribute::DomAttr, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, Pod,
@@ -60,6 +61,7 @@ impl<T, A, Children> CustomElement<T, A, Children> {
 }
 
 impl<T, A, Children> ViewMarker for CustomElement<T, A, Children> {}
+impl<T, A, Children> Sealed for CustomElement<T, A, Children> {}
 
 impl<T, A, Children> View<T, A> for CustomElement<T, A, Children>
 where
@@ -260,6 +262,7 @@ macro_rules! define_html_element {
         pub struct $ty_name<$t, $a = (), $vs = ()>($vs, PhantomData<fn() -> ($t, $a)>);
 
         impl<$t, $a, $vs> ViewMarker for $ty_name<$t, $a, $vs> {}
+        impl<$t, $a, $vs> Sealed for $ty_name<$t, $a, $vs> {}
 
         impl<$t, $a, $vs: ViewSequence<$t, $a>> View<$t, $a> for $ty_name<$t, $a, $vs> {
             element_state_associated_type!($dom_interface, $vs, $($build_extra)*$($rebuild_extra)*);

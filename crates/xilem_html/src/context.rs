@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::any::Any;
 use std::collections::BTreeMap;
 
@@ -48,9 +49,10 @@ pub struct Cx {
     document: Document,
     // TODO There's likely a cleaner more robust way to propagate the attributes to an element
     pub(crate) current_element_attributes: VecMap<CowStr, AttributeValue>,
-
-    // new idea...
     pub(crate) current_element_dom_attributes: Vec<DomAttr>,
+    /// The first tuple element indicates that the after update is still in use, and shouldn't be garbage collected
+    /// This can happen, if an element that uses after_update is removed, it will be set to true after each rebuild of the `AfterUpdate` View
+    pub(crate) after_update: BTreeMap<Id, (bool, Vec<Id>)>,
     app_ref: Option<Box<dyn AppRunner>>,
 }
 
@@ -75,6 +77,7 @@ impl Cx {
             app_ref: None,
             current_element_attributes: Default::default(),
             current_element_dom_attributes: Vec::new(),
+            after_update: BTreeMap::new(),
         }
     }
 

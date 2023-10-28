@@ -8,7 +8,7 @@ use crate::dom_attributes::html_media_element::{
 #[cfg(feature = "HtmlVideoElement")]
 use crate::dom_attributes::html_video_element::{HtmlVideoElementHeight, HtmlVideoElementWidth};
 
-use crate::{sealed::Sealed,  View, ViewMarker};
+use crate::{sealed::Sealed, AfterUpdate, View, ViewMarker};
 use std::borrow::Cow;
 
 use gloo::events::EventListenerOptions;
@@ -97,6 +97,10 @@ where
     // or should there be (extra) "modifier" methods like `add_class` and/or `remove_class`
     fn class(self, class: impl Into<Cow<'static, str>>) -> ElementClass<Self> {
         ElementClass::new(self, class.into())
+    }
+
+    fn after_update<F: Fn(&mut T, &Self::Element)>(self, callback: F) -> AfterUpdate<Self, F> {
+        AfterUpdate::new(self, callback)
     }
 
     // event list from

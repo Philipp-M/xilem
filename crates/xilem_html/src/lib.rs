@@ -7,6 +7,7 @@
 
 use wasm_bindgen::JsCast;
 
+mod after_update;
 mod app;
 mod attribute;
 mod attribute_value;
@@ -27,6 +28,7 @@ pub use xilem_core::MessageResult;
 
 pub use app::App;
 pub use attribute::Attr;
+pub use after_update::AfterUpdate;
 pub use attribute_value::{AttributeValue, IntoAttributeValue};
 pub use cached::{cached, memoize, s, Cached};
 pub use context::{ChangeFlags, Cx};

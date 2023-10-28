@@ -7,6 +7,7 @@ members = [
     "crates/xilem_html/web_examples/counter_custom_element",
     "crates/xilem_html/web_examples/todomvc",
     "crates/xilem_html/web_examples/play_video",
+    "crates/xilem_html/web_examples/after_update",
 ]
 
 [workspace.package]

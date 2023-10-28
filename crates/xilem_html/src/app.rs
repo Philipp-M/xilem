@@ -108,6 +108,10 @@ impl<T: 'static, V: View<T> + 'static, F: FnMut(&mut T) -> V + 'static> AppRunne
                 }
             }
 
+            for after_update in inner.cx.after_update.values_mut() {
+                after_update.0 = false;
+            }
+
             let new_view = (inner.app_logic)(&mut inner.data);
             let _changed = new_view.rebuild(
                 &mut inner.cx,
@@ -119,6 +123,39 @@ impl<T: 'static, V: View<T> + 'static, F: FnMut(&mut T) -> V + 'static> AppRunne
             // Not sure we have to do anything on changed, the rebuild
             // traversal should cause the DOM to update.
             *view = new_view;
+
+            let mut to_remove_after_update = Vec::new();
+            let mut after_update_called = false;
+
+            for (id, after_update) in inner.cx.after_update.iter_mut() {
+                if after_update.0 {
+                    after_update_called = true;
+                    view.message(
+                        &after_update.1[1..],
+                        inner.state.as_mut().unwrap(),
+                        Box::new(()),
+                        &mut inner.data,
+                    );
+                } else {
+                    to_remove_after_update.push(*id);
+                }
+            }
+
+            for to_remove in to_remove_after_update {
+                inner.cx.after_update.remove(&to_remove);
+            }
+
+            if after_update_called {
+                let new_view = (inner.app_logic)(&mut inner.data);
+                let _changed = new_view.rebuild(
+                    &mut inner.cx,
+                    view,
+                    inner.id.as_mut().unwrap(),
+                    inner.state.as_mut().unwrap(),
+                    inner.element.as_mut().unwrap(),
+                );
+                *view = new_view;
+            }
         }
     }
 

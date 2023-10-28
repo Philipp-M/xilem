@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 /// A stable identifier for an element.
 pub struct Id(NonZeroU64);
 

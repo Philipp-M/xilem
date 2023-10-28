@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::collections::BTreeMap;
 
 use bitflags::bitflags;
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
@@ -46,6 +47,9 @@ pub struct Cx {
     document: Document,
     // TODO There's likely a cleaner more robust way to propagate the attributes to an element
     pub(crate) current_element_attributes: VecMap<CowStr, AttributeValue>,
+    /// The first tuple element indicates that the after update is still in use, and shouldn't be garbage collected
+    /// This can happen, if an element that uses after_update is removed, it will be set to true after each rebuild of the `AfterUpdate` View
+    pub(crate) after_update: BTreeMap<Id, (bool, Vec<Id>)>,
     app_ref: Option<Box<dyn AppRunner>>,
 }
 
@@ -69,6 +73,7 @@ impl Cx {
             document: crate::document(),
             app_ref: None,
             current_element_attributes: Default::default(),
+            after_update: BTreeMap::new(),
         }
     }
 

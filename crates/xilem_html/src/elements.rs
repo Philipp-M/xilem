@@ -1,22 +1,13 @@
-#[cfg(feature = "HtmlMediaElement")]
-pub mod html_media_element;
-#[cfg(feature = "HtmlVideoElement")]
-pub mod html_video_element;
-
 use std::marker::PhantomData;
 
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult, VecSplice};
 
-use crate::sealed::Sealed;
-#[allow(unused)]
 use crate::{
-    dom_attribute::DomAttr, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, Pod,
-    View, ViewMarker, ViewSequence,
+    sealed::Sealed, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, Pod, View,
+    ViewMarker, ViewSequence,
 };
 
-#[cfg(feature = "HtmlElement")]
-use super::interfaces::HtmlElement;
 use super::interfaces::{for_all_dom_interface_relatives, Element};
 
 type CowStr = std::borrow::Cow<'static, str>;
@@ -71,6 +62,7 @@ where
 
     // This is mostly intended for Autonomous custom elements,
     // TODO: Custom builtin components need some special handling (`document.createElement("p", { is: "custom-component" })`)
+    // TODO change web_sys type with feature? This breaks SemVer compatibility...
     #[cfg(feature = "HtmlElement")]
     type Element = web_sys::HtmlElement;
     #[cfg(not(feature = "HtmlElement"))]
@@ -171,7 +163,10 @@ where
 
 impl<T, A, Children: ViewSequence<T, A>> Element<T, A> for CustomElement<T, A, Children> {}
 #[cfg(feature = "HtmlElement")]
-impl<T, A, Children: ViewSequence<T, A>> HtmlElement<T, A> for CustomElement<T, A, Children> {}
+impl<T, A, Children: ViewSequence<T, A>> crate::interfaces::HtmlElement<T, A>
+    for CustomElement<T, A, Children>
+{
+}
 
 macro_rules! generate_dom_interface_impl {
     ($dom_interface:ident, $ty_name:ident, $name:ident, $t:ident, $a:ident, $vs:ident) => {
@@ -228,7 +223,7 @@ macro_rules! element_state_associated_type {
     ($dom_interface:ident, $vs:ident, $($_:tt)*) => {
         paste::paste! {
         #[cfg(feature = "" $dom_interface "")]
-        type State = ElementState<$vs::State, Vec<DomAttr>>;
+        type State = ElementState<$vs::State, Vec<$crate::dom_attributes::DomAttr>>;
         #[cfg(not(feature = "" $dom_interface ""))]
         type State = ElementState<$vs::State>;
         }
@@ -437,10 +432,21 @@ define_elements!(
     // image and multimedia
     (Area, area, HtmlAreaElement),
     (Audio, audio, HtmlAudioElement),
+    (Canvas,
+        canvas,
+        HtmlCanvasElement,
+        build_fn: {crate::dom_attributes::html_canvas_element::canvas_element_build_extra},
+        rebuild_fn: {crate::dom_attributes::html_canvas_element::canvas_element_rebuild_extra}
+    ),
     (Img, img, HtmlImageElement),
     (Map, map, HtmlMapElement),
     (Track, track, HtmlTrackElement),
-    (Video, video, HtmlVideoElement, build_fn: {html_video_element::video_element_build_extra}, rebuild_fn: {html_video_element::video_element_rebuild_extra}),
+    (Video,
+        video,
+        HtmlVideoElement,
+        build_fn: {crate::dom_attributes::html_video_element::video_element_build_extra},
+        rebuild_fn: {crate::dom_attributes::html_video_element::video_element_rebuild_extra}
+    ),
     // embedded content
     (Embed, embed, HtmlEmbedElement),
     (Iframe, iframe, HtmlIFrameElement),
@@ -452,7 +458,6 @@ define_elements!(
     (Svg, svg, HtmlElement),
     (Math, math, HtmlElement),
     // scripting
-    (Canvas, canvas, HtmlCanvasElement),
     (Noscript, noscript, HtmlElement),
     (Script, script, HtmlScriptElement),
     // demarcating edits

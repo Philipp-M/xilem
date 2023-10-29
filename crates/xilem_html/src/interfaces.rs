@@ -1,8 +1,13 @@
+#[cfg(feature = "HtmlCanvasElement")]
+use crate::dom_attributes::html_canvas_element::{HtmlCanvasElementHeight, HtmlCanvasElementWidth};
 #[cfg(feature = "HtmlMediaElement")]
-use crate::elements::html_media_element::{HtmlMediaElementPlay, HtmlMediaElementPlaybackRate};
+use crate::dom_attributes::html_media_element::{
+    HtmlMediaElementPlay, HtmlMediaElementPlaybackRate,
+};
 #[cfg(feature = "HtmlVideoElement")]
-use crate::elements::html_video_element::{HtmlVideoElementHeight, HtmlVideoElementWidth};
-use crate::{sealed::Sealed, View, ViewMarker};
+use crate::dom_attributes::html_video_element::{HtmlVideoElementHeight, HtmlVideoElementWidth};
+
+use crate::{sealed::Sealed,  View, ViewMarker};
 use std::borrow::Cow;
 
 use gloo::events::EventListenerOptions;
@@ -238,14 +243,11 @@ dom_interface_macro_and_trait_definitions!($,
     HtmlBrElement : HtmlElement {},
     HtmlButtonElement : HtmlElement {},
     HtmlCanvasElement : HtmlElement {
-        // Basic idea how to get strong typed attributes working
-        // Rather the DOM interface attributes than HTML/XML attributes though, as they are (mostly) well defined by the spec,
-        // compared to HTML/XML attributes.
-        fn width(self, width: u32) -> Attr<Self> {
-            self.attr("width", width)
+        fn width(self, value: u32) -> HtmlCanvasElementWidth<Self> {
+            HtmlCanvasElementWidth::new(self, value)
         }
-        fn height(self, height: u32) -> Attr<Self> {
-            self.attr("height", height)
+        fn height(self, value: u32) -> HtmlCanvasElementHeight<Self> {
+            HtmlCanvasElementHeight::new(self, value)
         }
     },
     HtmlDataElement : HtmlElement {},

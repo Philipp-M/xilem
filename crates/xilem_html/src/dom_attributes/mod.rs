@@ -1,26 +1,23 @@
+#[cfg(feature = "HtmlCanvasElement")]
+pub mod html_canvas_element;
 #[cfg(feature = "HtmlMediaElement")]
-#[derive(PartialEq, Clone, Debug, PartialOrd)]
-pub enum HtmlMediaElementAttr {
-    Play(bool),
-    PlaybackRate(f64),
-}
-
+pub mod html_media_element;
 #[cfg(feature = "HtmlVideoElement")]
-#[derive(PartialEq, Clone, Debug, PartialOrd)]
-pub enum HtmlVideoElementAttr {
-    Width(u32),
-    Height(u32),
-}
+pub mod html_video_element;
 
+#[allow(clippy::enum_variant_names)]
+#[non_exhaustive]
 #[derive(PartialEq, Clone, Debug, PartialOrd)]
 pub enum DomAttr {
     #[cfg(feature = "HtmlMediaElement")]
-    HtmlMediaElement(HtmlMediaElementAttr),
+    HtmlMediaElement(html_media_element::HtmlMediaElementAttr),
     #[cfg(feature = "HtmlVideoElement")]
-    HtmlVideoElement(HtmlVideoElementAttr),
+    HtmlVideoElement(html_video_element::HtmlVideoElementAttr),
+    #[cfg(feature = "HtmlCanvasElement")]
+    HtmlCanvasElement(html_canvas_element::HtmlCanvasElementAttr),
 }
 
-// not having the descendant dom interface parameter, would make this macro vastly more complex (needs probably proc-macros)
+// not having the descendant dom interface parameter, would make this macro vastly more complex (probably needs something like proc-macros)
 #[allow(unused)]
 macro_rules! create_dom_attribute_view {
     ($attribute:ident, $value_type:ty, $dom_interface:ident) => {
@@ -42,37 +39,41 @@ macro_rules! create_dom_attribute_view {
 
         macro_rules! [<generate_dom_interface_impl_for_ $dom_interface:snake _ $attribute:snake>] {
             ($inner_dom_interface:ident) => {
-                impl<T, A, E: $crate::interfaces::$dom_interface<T, A>> $crate::interfaces::$inner_dom_interface<T, A> for
-                    [<$dom_interface $attribute:camel>]<E> {}
+                impl<T, A, E> $crate::interfaces::$inner_dom_interface<T, A> for [<$dom_interface $attribute:camel>]<E>
+                where
+                    E: $crate::interfaces::$dom_interface<T, A>,
+                {}
             };
         }
 
-        $crate::interfaces::for_all_dom_interface_relatives!($dom_interface, [<generate_dom_interface_impl_for_ $dom_interface:snake _ $attribute:snake>]);
+        $crate::interfaces::for_all_dom_interface_relatives!(
+            $dom_interface,
+            [<generate_dom_interface_impl_for_ $dom_interface:snake _ $attribute:snake>]
+        );
 
         $(
-        paste::paste! {
         #[cfg(feature = "" $descendant_dom_interface "")]
-        impl<T, A, E: $crate::interfaces::$descendant_dom_interface<T, A>> $crate::interfaces::$descendant_dom_interface<T, A> for
-            [<$dom_interface $attribute:camel>]<E> {}
-        }
+        impl<T, A, E> $crate::interfaces::$descendant_dom_interface<T, A> for [<$dom_interface $attribute:camel>]<E>
+        where
+            E: $crate::interfaces::$descendant_dom_interface<T, A>,
+        {}
         )*
 
         impl<E> $crate::sealed::Sealed for [<$dom_interface $attribute:camel>]<E> {}
         impl<E> $crate::ViewMarker for [<$dom_interface $attribute:camel>]<E> {}
 
-        impl<T, A, E: $crate::interfaces::$dom_interface<T, A>> $crate::View<T, A> for [<$dom_interface $attribute:camel>]<E> {
+        impl<T, A, E> $crate::View<T, A> for [<$dom_interface $attribute:camel>]<E>
+        where
+            E: $crate::interfaces::$dom_interface<T, A>,
+        {
             type State = E::State;
             type Element = E::Element;
 
             fn build(&self, cx: &mut $crate::Cx) -> (xilem_core::Id, Self::State, Self::Element) {
-                // TODO only relevant in SSR contexts
-                // cx.add_new_attribute_to_current_element(
-                //     &Cow::from("width"),
-                //     &Some(AttributeValue::U32(self.value)),
-                // );
+                use $crate::dom_attributes::{DomAttr, [<$dom_interface:snake>]::[<$dom_interface Attr>]};
                 cx.add_new_dom_attribute_to_current_element(
-                    |a| matches!(a, $crate::dom_attribute::DomAttr::$dom_interface($crate::dom_attribute::[<$dom_interface Attr>]::[<$attribute:camel>](_))),
-                    &$crate::dom_attribute::DomAttr::$dom_interface($crate::dom_attribute::[<$dom_interface Attr>]::[<$attribute:camel>](self.value)),
+                    |a| matches!(a, DomAttr::$dom_interface([<$dom_interface Attr>]::[<$attribute:camel>](_))),
+                    &DomAttr::$dom_interface([<$dom_interface Attr>]::[<$attribute:camel>](self.value)),
                 );
                 self.element.build(cx)
             }
@@ -85,14 +86,10 @@ macro_rules! create_dom_attribute_view {
                 state: &mut Self::State,
                 element: &mut Self::Element,
             ) -> $crate::ChangeFlags {
-                // TODO only relevant in SSR contexts
-                // cx.add_new_attribute_to_current_element(
-                //     &Cow::from("width"),
-                //     &Some(AttributeValue::U32(self.value)),
-                // );
+                use $crate::dom_attributes::{DomAttr, [<$dom_interface:snake>]::[<$dom_interface Attr>]};
                 cx.add_new_dom_attribute_to_current_element(
-                    |a| matches!(a, $crate::dom_attribute::DomAttr::$dom_interface($crate::dom_attribute::[<$dom_interface Attr>]::[<$attribute:camel>](_))),
-                    &$crate::dom_attribute::DomAttr::$dom_interface($crate::dom_attribute::[<$dom_interface Attr>]::[<$attribute:camel>](self.value)),
+                    |a| matches!(a, DomAttr::$dom_interface([<$dom_interface Attr>]::[<$attribute:camel>](_))),
+                    &DomAttr::$dom_interface([<$dom_interface Attr>]::[<$attribute:camel>](self.value)),
                 );
                 self.element.rebuild(cx, &prev.element, id, state, element)
             }

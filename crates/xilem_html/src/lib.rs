@@ -13,7 +13,7 @@ mod attribute_value;
 mod cached;
 mod context;
 mod diff;
-mod dom_attribute;
+mod dom_attributes;
 pub mod elements;
 pub mod events;
 pub mod interfaces;

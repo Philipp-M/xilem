@@ -1,9 +1,13 @@
 use wasm_bindgen::UnwrapThrowExt;
 
-use crate::{
-    dom_attribute::{create_dom_attribute_view, HtmlMediaElementAttr},
-    ChangeFlags,
-};
+use super::create_dom_attribute_view;
+use crate::ChangeFlags;
+
+#[derive(PartialEq, Clone, Debug, PartialOrd)]
+pub enum HtmlMediaElementAttr {
+    Play(bool),
+    PlaybackRate(f64),
+}
 
 create_dom_attribute_view!(playbackRate, f64, HtmlMediaElement : {HtmlVideoElement, HtmlAudioElement});
 create_dom_attribute_view!(play, bool, HtmlMediaElement : {HtmlVideoElement, HtmlAudioElement});
@@ -21,7 +25,7 @@ pub(crate) fn media_element_build_extra(
         }
         HtmlMediaElementAttr::PlaybackRate(playback_rate) => {
             el.set_playback_rate(*playback_rate);
-        } // _ => unreachable!(),
+        }
     }
 }
 

@@ -1,10 +1,17 @@
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 
-use super::html_media_element::{media_element_build_extra, media_element_rebuild_extra};
-use crate::{
-    dom_attribute::{create_dom_attribute_view, DomAttr, HtmlVideoElementAttr},
-    ChangeFlags,
+use super::{
+    create_dom_attribute_view,
+    html_media_element::{media_element_build_extra, media_element_rebuild_extra},
+    DomAttr,
 };
+use crate::ChangeFlags;
+
+#[derive(PartialEq, Clone, Debug, PartialOrd)]
+pub enum HtmlVideoElementAttr {
+    Width(u32),
+    Height(u32),
+}
 
 create_dom_attribute_view!(width, u32, HtmlVideoElement);
 create_dom_attribute_view!(height, u32, HtmlVideoElement);
@@ -23,7 +30,7 @@ pub(crate) fn video_element_build_extra(el: &web_sys::Element, attr: &DomAttr) {
             let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
             el.set_height(*height);
         }
-        // _ => unreachable!(),
+        _ => unreachable!(),
     }
 }
 

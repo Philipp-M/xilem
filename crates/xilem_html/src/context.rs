@@ -9,7 +9,7 @@ use xilem_core::{Id, IdPath};
 use crate::{
     app::AppRunner,
     diff::{diff_kv_iterables, Diff},
-    dom_attribute::DomAttr,
+    dom_attributes::DomAttr,
     vecmap::VecMap,
     AttributeValue, Message, HTML_NS, SVG_NS,
 };

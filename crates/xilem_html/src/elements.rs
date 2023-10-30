@@ -62,11 +62,7 @@ where
 
     // This is mostly intended for Autonomous custom elements,
     // TODO: Custom builtin components need some special handling (`document.createElement("p", { is: "custom-component" })`)
-    // TODO change web_sys type with feature? This breaks SemVer compatibility...
-    #[cfg(feature = "HtmlElement")]
     type Element = web_sys::HtmlElement;
-    #[cfg(not(feature = "HtmlElement"))]
-    type Element = web_sys::Element;
 
     fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
         let el = cx.create_html_element(&self.name);
@@ -234,13 +230,13 @@ macro_rules! element_state_associated_type {
 //      (should improve compile times and probably wasm binary size)
 macro_rules! define_html_element {
     (($ty_name:ident, $name:ident, $dom_interface:ident)) => {
-        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, {}, {}));
+        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, build_fn: {}, rebuild_fn: {}));
     };
     (($ty_name:ident, $name:ident, $dom_interface:ident, build_fn: {$($build_fn:tt)*}, rebuild_fn: {$($rebuild_fn:tt)*})) => {
-        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, {$($build_fn)*}, {$($rebuild_fn)*}));
+        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, build_fn: {$($build_fn)*}, rebuild_fn: {$($rebuild_fn)*}));
     };
     (($ty_name:ident, $name:ident, $dom_interface:ident, $t:ident, $a: ident, $vs: ident)) => {
-        define_html_element!(($ty_name, $name, $dom_interface, $t, $a, $vs, {}, {}));
+        define_html_element!(($ty_name, $name, $dom_interface, $t, $a, $vs, build_fn: {}, rebuild_fn: {}));
     };
     (($ty_name:ident,
       $name:ident,
@@ -251,30 +247,22 @@ macro_rules! define_html_element {
       build_fn: {$($build_fn:tt)*},
       rebuild_fn: {$($rebuild_fn:tt)*}
     )) => {
-        define_html_element!(($ty_name, $name, $dom_interface, $t, $a, $vs, { $($build_fn)*}, { $($rebuild_fn)* }));
-    };
-    (($ty_name:ident, $name:ident, $dom_interface:ident, $t:ident, $a: ident, $vs: ident, {$($build_extra:tt)*}, {$($rebuild_extra:tt)*})) => {
         pub struct $ty_name<$t, $a = (), $vs = ()>($vs, PhantomData<fn() -> ($t, $a)>);
 
         impl<$t, $a, $vs> ViewMarker for $ty_name<$t, $a, $vs> {}
         impl<$t, $a, $vs> Sealed for $ty_name<$t, $a, $vs> {}
 
         impl<$t, $a, $vs: ViewSequence<$t, $a>> View<$t, $a> for $ty_name<$t, $a, $vs> {
-            element_state_associated_type!($dom_interface, $vs, $($build_extra)*$($rebuild_extra)*);
+            element_state_associated_type!($dom_interface, $vs, $($build_fn)*$($rebuild_fn)*);
 
-            paste::paste! {
-            #[cfg(feature = "" $dom_interface "")]
             type Element = web_sys::$dom_interface;
-            #[cfg(not(feature = "" $dom_interface ""))]
-            type Element = web_sys::Element;
-            }
 
             fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
                 let el = cx.create_html_element(stringify!($name));
 
                 let attributes = cx.apply_attributes(&el);
 
-                let dom_attributes = build_extra!($dom_interface, cx, el, $($build_extra)*);
+                let dom_attributes = build_extra!($dom_interface, cx, el, $($build_fn)*);
 
                 let mut child_elements = vec![];
                 let (id, children_states) =
@@ -311,7 +299,7 @@ macro_rules! define_html_element {
                 let mut changed = ChangeFlags::empty();
 
                 changed |= cx.apply_attribute_changes(element, &mut state.attributes);
-                rebuild_extra!($dom_interface, cx, element, changed, state.dom_attributes, $($rebuild_extra)*);
+                rebuild_extra!($dom_interface, cx, element, changed, state.dom_attributes, $($rebuild_fn)*);
 
                 // update children
                 let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);

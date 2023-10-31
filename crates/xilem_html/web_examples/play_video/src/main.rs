@@ -1,8 +1,4 @@
-use xilem_html::{
-    document_body, elements as el,
-    interfaces::{Element, HtmlMediaElement, HtmlVideoElement},
-    App,
-};
+use xilem_html::{document_body, elements as el, interfaces::*, App};
 
 pub fn main() {
     console_error_panic_hook::set_once();
@@ -11,7 +7,7 @@ pub fn main() {
             el::video(())
                 .attr(
                     "src",
-                    "https://d8d913s460fub.cloudfront.net/videoserver/cat-test-video-320x240.mp4",
+                    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
                 )
                 .play(*is_playing)
                 .on_ended(|is_playing, _| *is_playing = false),

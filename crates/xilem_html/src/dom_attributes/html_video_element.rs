@@ -30,6 +30,7 @@ pub(crate) fn video_element_build_extra(el: &web_sys::Element, attr: &DomAttr) {
             let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
             el.set_height(*height);
         }
+        #[allow(unreachable_patterns)]
         _ => unreachable!(),
     }
 }
@@ -45,17 +46,17 @@ pub(crate) fn video_element_rebuild_extra(
             media_element_rebuild_extra(el, old, new)
         }
         (
-            DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(_old_width)),
+            DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(old_width)),
             DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(new_width)),
-        ) => {
+        ) if old_width != new_width => {
             let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
             el.set_width(*new_width);
             ChangeFlags::OTHER_CHANGE
         }
         (
-            DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Height(_old_height)),
+            DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Height(old_height)),
             DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Height(new_height)),
-        ) => {
+        ) if old_height != new_height => {
             let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
             el.set_height(*new_height);
             ChangeFlags::OTHER_CHANGE

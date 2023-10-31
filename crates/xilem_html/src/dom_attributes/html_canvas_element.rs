@@ -34,17 +34,17 @@ pub(crate) fn canvas_element_rebuild_extra(
 ) -> ChangeFlags {
     match (old, new) {
         (
-            DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Width(_old_width)),
+            DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Width(old_width)),
             DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Width(new_width)),
-        ) => {
+        ) if old_width != new_width => {
             let el = el.dyn_ref::<web_sys::HtmlCanvasElement>().unwrap_throw();
             el.set_width(*new_width);
             ChangeFlags::OTHER_CHANGE
         }
         (
-            DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Height(_old_height)),
+            DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Height(old_height)),
             DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Height(new_height)),
-        ) => {
+        ) if old_height != new_height => {
             let el = el.dyn_ref::<web_sys::HtmlCanvasElement>().unwrap_throw();
             el.set_height(*new_height);
             ChangeFlags::OTHER_CHANGE

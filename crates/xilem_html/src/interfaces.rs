@@ -199,9 +199,9 @@ macro_rules! dom_interface_macro_and_trait_definitions {
         )*
         }
 
-        #[doc="Execute $mac which is a macro, that takes at least the $dom_interface:ident as parameter for all interface relatives."]
-        #[doc="For example for_all_dom_interface_relatives(HtmlVideoElement, my_mac, ...) invocates my_mac!(HtmlVideoElement, ...), my_mac!(HtmlMediaElement, ...), my_mac!(HtmlElement, ...) and my_mac!(Element, ...)"]
-        #[doc="It optionally passes arguments given to for_all_dom_interface_relatives! to $mac!"]
+        /// Execute $mac which is a macro, that takes at least the $dom_interface:ident as parameter for all interface relatives.
+        /// For example for_all_dom_interface_relatives(HtmlVideoElement, my_mac, ...) invocates my_mac!(HtmlVideoElement, ...), my_mac!(HtmlMediaElement, ...), my_mac!(HtmlElement, ...) and my_mac!(Element, ...)
+        /// It optionally passes arguments given to for_all_dom_interface_relatives! to $mac!
         macro_rules! for_all_dom_interface_relatives {
             // base case, Element is the root interface for all kinds of DOM interfaces
             (Element, $mac:ident $dollar($body_:tt)*) => {
@@ -215,8 +215,8 @@ macro_rules! dom_interface_macro_and_trait_definitions {
 
         pub(crate) use for_all_dom_interface_relatives;
 
-        #[doc="Execute $mac which is a macro, that takes at least the $dom_interface:ident as parameter, for all dom interfaces."]
-        #[doc="It optionally passes arguments given to for_all_dom_interfaces! to $mac!"]
+        /// Execute $mac which is a macro, that takes at least the $dom_interface:ident as parameter, for all dom interfaces.
+        /// It optionally passes arguments given to for_all_dom_interfaces! to $mac!
         macro_rules! for_all_dom_interfaces {
             ($mac:ident $dollar($body_:tt)*) => {
                 $mac!(Element $dollar($body_)*);

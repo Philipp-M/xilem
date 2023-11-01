@@ -1,10 +1,4 @@
-use wasm_bindgen::{JsCast, UnwrapThrowExt};
-
-use super::{
-    create_dom_attribute_view,
-    html_media_element::{media_element_build_extra, media_element_rebuild_extra},
-    DomAttr,
-};
+use super::create_dom_attribute_view;
 use crate::ChangeFlags;
 
 #[derive(PartialEq, Clone, Debug, PartialOrd)]
@@ -13,51 +7,31 @@ pub enum HtmlVideoElementAttr {
     Height(u32),
 }
 
-create_dom_attribute_view!(width, u32, HtmlVideoElement);
-create_dom_attribute_view!(height, u32, HtmlVideoElement);
+create_dom_attribute_view!(width, u32, HtmlVideoElement: {});
+create_dom_attribute_view!(height, u32, HtmlVideoElement: {});
 
-pub(crate) fn video_element_build_extra(el: &web_sys::Element, attr: &DomAttr) {
+pub(crate) fn build_dom_attribute(el: &web_sys::HtmlVideoElement, attr: &HtmlVideoElementAttr) {
     match attr {
-        DomAttr::HtmlMediaElement(attr) => {
-            let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
-            media_element_build_extra(el, attr)
-        }
-        DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(width)) => {
-            let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
-            el.set_width(*width);
-        }
-        DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Height(height)) => {
-            let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
-            el.set_height(*height);
-        }
-        #[allow(unreachable_patterns)]
-        _ => unreachable!(),
+        HtmlVideoElementAttr::Width(width) => el.set_width(*width),
+        HtmlVideoElementAttr::Height(height) => el.set_height(*height),
     }
 }
 
-pub(crate) fn video_element_rebuild_extra(
-    el: &web_sys::Element,
-    old: &DomAttr,
-    new: &DomAttr,
+pub(crate) fn rebuild_dom_attribute(
+    el: &web_sys::HtmlVideoElement,
+    old: &HtmlVideoElementAttr,
+    new: &HtmlVideoElementAttr,
 ) -> ChangeFlags {
     match (old, new) {
-        (DomAttr::HtmlMediaElement(old), DomAttr::HtmlMediaElement(new)) => {
-            let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
-            media_element_rebuild_extra(el, old, new)
-        }
-        (
-            DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(old_width)),
-            DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Width(new_width)),
-        ) if old_width != new_width => {
-            let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
+        (HtmlVideoElementAttr::Width(old_width), HtmlVideoElementAttr::Width(new_width))
+            if old_width != new_width =>
+        {
             el.set_width(*new_width);
             ChangeFlags::OTHER_CHANGE
         }
-        (
-            DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Height(old_height)),
-            DomAttr::HtmlVideoElement(HtmlVideoElementAttr::Height(new_height)),
-        ) if old_height != new_height => {
-            let el = el.dyn_ref::<web_sys::HtmlVideoElement>().unwrap_throw();
+        (HtmlVideoElementAttr::Height(old_height), HtmlVideoElementAttr::Height(new_height))
+            if old_height != new_height =>
+        {
             el.set_height(*new_height);
             ChangeFlags::OTHER_CHANGE
         }

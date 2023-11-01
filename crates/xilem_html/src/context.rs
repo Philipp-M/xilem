@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::collections::BTreeMap;
 
 use bitflags::bitflags;
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
@@ -193,10 +194,12 @@ impl Cx {
         apply_change: fn(&web_sys::Element, &DomAttr, &DomAttr) -> ChangeFlags,
     ) -> ChangeFlags {
         let mut changed = ChangeFlags::empty();
-        // currently it's required that there's no changes the amount of attributes
-        // TODO not sure if it makes sense to just leave it at the previous value,
+        // TODO not sure if it makes sense to just leave removed DOM attributes at their previous value,
         // but this would introduce "side-effects" and may result in unwanted behavior
-        assert!(attributes.len() == self.current_element_dom_attributes.len());
+        assert!(
+            attributes.len() == self.current_element_dom_attributes.len(),
+            "Currently it's required that there's no changes in the amount of DOM attributes"
+        );
         for (old, new) in attributes
             .iter()
             .zip(self.current_element_dom_attributes.iter())

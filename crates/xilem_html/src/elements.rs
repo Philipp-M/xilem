@@ -4,8 +4,11 @@ use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult, VecSplice};
 
 use crate::{
-    sealed::Sealed, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx, Pod, View,
-    ViewMarker, ViewSequence,
+    dom_attributes::{build_dom_attribute, rebuild_dom_attribute, DomAttr},
+    sealed::Sealed,
+    vecmap::VecMap,
+    view::DomNode,
+    AttributeValue, ChangeFlags, Cx, Pod, View, ViewMarker, ViewSequence,
 };
 
 use super::interfaces::{for_all_dom_interface_relatives, Element};
@@ -15,11 +18,11 @@ type CowStr = std::borrow::Cow<'static, str>;
 /// The state associated with a HTML element `View`.
 ///
 /// Stores handles to the child elements and any child state, as well as attributes and event listeners
-pub struct ElementState<ViewSeqState, DA = ()> {
+pub struct ElementState<ViewSeqState> {
     pub(crate) children_states: ViewSeqState,
     pub(crate) attributes: VecMap<CowStr, AttributeValue>,
     #[allow(unused)]
-    pub(crate) dom_attributes: DA,
+    pub(crate) dom_attributes: Vec<DomAttr>,
     pub(crate) child_elements: Vec<Pod>,
     pub(crate) scratch: Vec<Pod>,
 }
@@ -68,6 +71,7 @@ where
         let el = cx.create_html_element(&self.name);
 
         let attributes = cx.apply_attributes(&el);
+        let dom_attributes = cx.apply_dom_attributes(&el, build_dom_attribute);
 
         let mut child_elements = vec![];
         let (id, children_states) =
@@ -89,7 +93,7 @@ where
             child_elements,
             scratch: vec![],
             attributes,
-            dom_attributes: (),
+            dom_attributes,
         };
         (id, state, el)
     }
@@ -122,7 +126,12 @@ where
             changed |= ChangeFlags::STRUCTURE;
         }
 
-        cx.apply_attribute_changes(element, &mut state.attributes);
+        changed |= cx.apply_attribute_changes(element, &mut state.attributes);
+        changed |= cx.apply_dom_attribute_changes(
+            element,
+            &mut state.dom_attributes,
+            rebuild_dom_attribute,
+        );
 
         // update children
         let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
@@ -186,83 +195,27 @@ macro_rules! generate_dom_interface_impl {
     };
 }
 
-// because of macro hygiene, it's necessary to wrap this in extra macros
-macro_rules! build_extra {
-    ($dom_interface:ident, $context: expr, $el: expr,) => { () };
-    ($dom_interface:ident, $context: expr, $el: expr, $($build_fn:tt)*) => {{
-        paste::paste! {
-            #[cfg(feature = "" $dom_interface "")]
-            let dom_attributes = $context.apply_dom_attributes(&$el, $($build_fn)*);
-            #[cfg(not(feature = "" $dom_interface ""))]
-            let dom_attributes = ();
-            dom_attributes
-        }
-    }};
-}
-
-macro_rules! rebuild_extra {
-    ($dom_interface:ident, $context: expr, $el: expr, $changed: ident, $dom_attrs: expr,) => { };
-    ($dom_interface:ident, $context: expr, $el: expr, $changed: ident, $dom_attrs: expr, $($rebuild_fn:tt)*) => {
-        paste::paste! {
-        #[cfg(feature = "" $dom_interface "")]
-        {
-            $changed |= $context.apply_dom_attribute_changes(&$el, &mut $dom_attrs, $($rebuild_fn)*);
-        }
-        }
-    };
-}
-
-macro_rules! element_state_associated_type {
-    ($dom_interface:ident, $vs:ident, ) => {
-        type State = ElementState<$vs::State>;
-    };
-    ($dom_interface:ident, $vs:ident, $($_:tt)*) => {
-        paste::paste! {
-        #[cfg(feature = "" $dom_interface "")]
-        type State = ElementState<$vs::State, Vec<$crate::dom_attributes::DomAttr>>;
-        #[cfg(not(feature = "" $dom_interface ""))]
-        type State = ElementState<$vs::State>;
-        }
-    };
-}
-
 // TODO maybe it's possible to reduce even more in the impl function bodies and put into impl_functions
 //      (should improve compile times and probably wasm binary size)
 macro_rules! define_html_element {
     (($ty_name:ident, $name:ident, $dom_interface:ident)) => {
-        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, build_fn: {}, rebuild_fn: {}));
-    };
-    (($ty_name:ident, $name:ident, $dom_interface:ident, build_fn: {$($build_fn:tt)*}, rebuild_fn: {$($rebuild_fn:tt)*})) => {
-        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS, build_fn: {$($build_fn)*}, rebuild_fn: {$($rebuild_fn)*}));
+        define_html_element!(($ty_name, $name, $dom_interface, T, A, VS));
     };
     (($ty_name:ident, $name:ident, $dom_interface:ident, $t:ident, $a: ident, $vs: ident)) => {
-        define_html_element!(($ty_name, $name, $dom_interface, $t, $a, $vs, build_fn: {}, rebuild_fn: {}));
-    };
-    (($ty_name:ident,
-      $name:ident,
-      $dom_interface:ident,
-      $t:ident,
-      $a: ident,
-      $vs: ident,
-      build_fn: {$($build_fn:tt)*},
-      rebuild_fn: {$($rebuild_fn:tt)*}
-    )) => {
         pub struct $ty_name<$t, $a = (), $vs = ()>($vs, PhantomData<fn() -> ($t, $a)>);
 
         impl<$t, $a, $vs> ViewMarker for $ty_name<$t, $a, $vs> {}
         impl<$t, $a, $vs> Sealed for $ty_name<$t, $a, $vs> {}
 
         impl<$t, $a, $vs: ViewSequence<$t, $a>> View<$t, $a> for $ty_name<$t, $a, $vs> {
-            element_state_associated_type!($dom_interface, $vs, $($build_fn)*$($rebuild_fn)*);
-
+            type State = ElementState<$vs::State>;
             type Element = web_sys::$dom_interface;
 
             fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
                 let el = cx.create_html_element(stringify!($name));
 
                 let attributes = cx.apply_attributes(&el);
-
-                let dom_attributes = build_extra!($dom_interface, cx, el, $($build_fn)*);
+                let dom_attributes = cx.apply_dom_attributes(&el, build_dom_attribute);
 
                 let mut child_elements = vec![];
                 let (id, children_states) =
@@ -299,7 +252,11 @@ macro_rules! define_html_element {
                 let mut changed = ChangeFlags::empty();
 
                 changed |= cx.apply_attribute_changes(element, &mut state.attributes);
-                rebuild_extra!($dom_interface, cx, element, changed, state.dom_attributes, $($rebuild_fn)*);
+                changed |= cx.apply_dom_attribute_changes(
+                    element,
+                    &mut state.dom_attributes,
+                    rebuild_dom_attribute,
+                );
 
                 // update children
                 let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
@@ -341,7 +298,15 @@ macro_rules! define_html_element {
             $ty_name(children, PhantomData)
         }
 
-        for_all_dom_interface_relatives!($dom_interface, generate_dom_interface_impl, $ty_name, $name, $t, $a, $vs);
+        for_all_dom_interface_relatives!(
+            $dom_interface,
+            generate_dom_interface_impl,
+            $ty_name,
+            $name,
+            $t,
+            $a,
+            $vs
+        );
     };
 }
 
@@ -420,21 +385,11 @@ define_elements!(
     // image and multimedia
     (Area, area, HtmlAreaElement),
     (Audio, audio, HtmlAudioElement),
-    (Canvas,
-        canvas,
-        HtmlCanvasElement,
-        build_fn: {crate::dom_attributes::html_canvas_element::canvas_element_build_extra},
-        rebuild_fn: {crate::dom_attributes::html_canvas_element::canvas_element_rebuild_extra}
-    ),
+    (Canvas, canvas, HtmlCanvasElement),
     (Img, img, HtmlImageElement),
     (Map, map, HtmlMapElement),
     (Track, track, HtmlTrackElement),
-    (Video,
-        video,
-        HtmlVideoElement,
-        build_fn: {crate::dom_attributes::html_video_element::video_element_build_extra},
-        rebuild_fn: {crate::dom_attributes::html_video_element::video_element_rebuild_extra}
-    ),
+    (Video, video, HtmlVideoElement),
     // embedded content
     (Embed, embed, HtmlEmbedElement),
     (Iframe, iframe, HtmlIFrameElement),

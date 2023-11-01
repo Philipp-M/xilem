@@ -1,6 +1,5 @@
-use super::{create_dom_attribute_view, DomAttr};
+use super::create_dom_attribute_view;
 use crate::ChangeFlags;
-use wasm_bindgen::{JsCast, UnwrapThrowExt};
 
 #[derive(PartialEq, Clone, Debug, PartialOrd)]
 pub enum HtmlCanvasElementAttr {
@@ -13,39 +12,28 @@ create_dom_attribute_view!(height, u32, HtmlCanvasElement);
 
 // TODO there may be less boilerplate heavy (but still flexible and non-mentally challenging/complex ways to express the stuff below...)
 
-pub(crate) fn canvas_element_build_extra(el: &web_sys::Element, attr: &DomAttr) {
+pub(crate) fn build_dom_attribute(el: &web_sys::HtmlCanvasElement, attr: &HtmlCanvasElementAttr) {
     match attr {
-        DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Width(width)) => {
-            let el = el.dyn_ref::<web_sys::HtmlCanvasElement>().unwrap_throw();
-            el.set_width(*width);
-        }
-        DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Height(height)) => {
-            let el = el.dyn_ref::<web_sys::HtmlCanvasElement>().unwrap_throw();
-            el.set_height(*height);
-        }
-        _ => unreachable!(),
+        HtmlCanvasElementAttr::Width(width) => el.set_width(*width),
+        HtmlCanvasElementAttr::Height(height) => el.set_height(*height),
     }
 }
 
-pub(crate) fn canvas_element_rebuild_extra(
-    el: &web_sys::Element,
-    old: &DomAttr,
-    new: &DomAttr,
+pub(crate) fn rebuild_dom_attribute(
+    el: &web_sys::HtmlCanvasElement,
+    old: &HtmlCanvasElementAttr,
+    new: &HtmlCanvasElementAttr,
 ) -> ChangeFlags {
     match (old, new) {
-        (
-            DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Width(old_width)),
-            DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Width(new_width)),
-        ) if old_width != new_width => {
-            let el = el.dyn_ref::<web_sys::HtmlCanvasElement>().unwrap_throw();
+        (HtmlCanvasElementAttr::Width(old_width), HtmlCanvasElementAttr::Width(new_width))
+            if old_width != new_width =>
+        {
             el.set_width(*new_width);
             ChangeFlags::OTHER_CHANGE
         }
-        (
-            DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Height(old_height)),
-            DomAttr::HtmlCanvasElement(HtmlCanvasElementAttr::Height(new_height)),
-        ) if old_height != new_height => {
-            let el = el.dyn_ref::<web_sys::HtmlCanvasElement>().unwrap_throw();
+        (HtmlCanvasElementAttr::Height(old_height), HtmlCanvasElementAttr::Height(new_height))
+            if old_height != new_height =>
+        {
             el.set_height(*new_height);
             ChangeFlags::OTHER_CHANGE
         }

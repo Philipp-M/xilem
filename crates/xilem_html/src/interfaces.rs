@@ -1,3 +1,4 @@
+use crate::dom_attributes::element::ElementClass;
 #[cfg(feature = "HtmlCanvasElement")]
 use crate::dom_attributes::html_canvas_element::{HtmlCanvasElementHeight, HtmlCanvasElementWidth};
 #[cfg(feature = "HtmlMediaElement")]
@@ -15,7 +16,7 @@ use wasm_bindgen::JsCast;
 
 use crate::{
     events::{self, EventListener},
-    Attr, AttributeValue, IntoAttributeValue, OptionalAction,
+    Attr, IntoAttributeValue, OptionalAction,
 };
 
 // TODO should the options be its own function `on_event_with_options`,
@@ -94,8 +95,8 @@ where
     // TODO should some methods extend some properties automatically,
     // instead of overwriting the (possibly set) inner value
     // or should there be (extra) "modifier" methods like `add_class` and/or `remove_class`
-    fn class(self, class: impl Into<Cow<'static, str>>) -> Attr<Self> {
-        self.attr("class", AttributeValue::String(class.into()))
+    fn class(self, class: impl Into<Cow<'static, str>>) -> ElementClass<Self> {
+        ElementClass::new(self, class.into())
     }
 
     // event list from

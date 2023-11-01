@@ -12,10 +12,7 @@ pub enum HtmlMediaElementAttr {
 create_dom_attribute_view!(playbackRate, f64, HtmlMediaElement : {HtmlVideoElement, HtmlAudioElement});
 create_dom_attribute_view!(play, bool, HtmlMediaElement : {HtmlVideoElement, HtmlAudioElement});
 
-pub(crate) fn media_element_build_extra(
-    el: &web_sys::HtmlMediaElement,
-    attr: &HtmlMediaElementAttr,
-) {
+pub(crate) fn build_dom_attribute(el: &web_sys::HtmlMediaElement, attr: &HtmlMediaElementAttr) {
     match attr {
         HtmlMediaElementAttr::Play(play) => {
             if *play {
@@ -29,7 +26,7 @@ pub(crate) fn media_element_build_extra(
     }
 }
 
-pub(crate) fn media_element_rebuild_extra(
+pub(crate) fn rebuild_dom_attribute(
     el: &web_sys::HtmlMediaElement,
     old: &HtmlMediaElementAttr,
     new: &HtmlMediaElementAttr,

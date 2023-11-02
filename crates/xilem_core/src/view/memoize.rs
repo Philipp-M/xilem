@@ -37,7 +37,7 @@ macro_rules! generate_memoize_view {
 
         impl<T, A, D, V, F> $viewtrait<T, A> for $memoizeview<D, F>
         where
-            D: PartialEq $( $ss )* + 'static,
+            D: PartialEq $( $ss )*,
             V: $viewtrait<T, A>,
             F: Fn(&D) -> V $( $ss )*,
         {
@@ -46,6 +46,10 @@ macro_rules! generate_memoize_view {
             type Element = V::Element;
 
             fn build(&self, cx: &mut $cx) -> ($crate::Id, Self::State, Self::Element) {
+                assert!(
+                    std::mem::size_of::<F>() == 0,
+                    "The callback is not allowed to be a function pointer or a closure capturing context"
+                );
                 let view = (self.child_cb)(&self.data);
                 let (id, view_state, element) = view.build(cx);
                 let memoize_state = $memoizestate {
@@ -96,6 +100,10 @@ macro_rules! generate_memoize_view {
         where
             F: Fn() -> V $( $ss )* + 'static,
         {
+            assert!(
+                std::mem::size_of::<F>() == 0,
+                "The callback is not allowed to be a function pointer or a closure capturing context"
+            );
             $memoizeview::new((), move |_: &()| view())
         }
 

@@ -297,5 +297,6 @@ dom_interface_macro_and_trait_definitions!($,
         fn height(self, value: u32) -> Attr<Self> {
             self.attr("height", value)
         }
-    }
+    },
+    SvgElement: Element {}
 );

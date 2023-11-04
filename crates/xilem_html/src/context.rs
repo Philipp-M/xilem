@@ -10,7 +10,7 @@ use crate::{
     app::AppRunner,
     diff::{diff_kv_iterables, Diff},
     vecmap::VecMap,
-    AttributeValue, Message, HTML_NS, SVG_NS,
+    AttributeValue, Message,
 };
 
 type CowStr = std::borrow::Cow<'static, str>;

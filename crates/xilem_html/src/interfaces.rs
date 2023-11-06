@@ -274,6 +274,48 @@ macro_rules! dom_interface_macro_and_trait_definitions {
     }
 }
 
+macro_rules! impl_dom_interfaces_for_ty_helper {
+    ($dom_interface:ident, ($ty:ident, <$($additional_generic_var:ident,)*>, {$($additional_generic_bounds:tt)*})) => {
+        $crate::interfaces::impl_dom_interfaces_for_ty_helper!($dom_interface, ($ty, $dom_interface, <$($additional_generic_var,)*>, {$($additional_generic_bounds)*}));
+    };
+    ($dom_interface:ident, ($ty:ident, $bound_interface:ident, <$($additional_generic_var:ident,)*>, {$($additional_generic_bounds:tt)*})) => {
+        impl<T, A, E, $($additional_generic_var,)*> $dom_interface<T, A> for $ty<T, A, E, $($additional_generic_var,)*>
+        where
+            E: $bound_interface<T, A>,
+            $($additional_generic_bounds)*
+        {
+        }
+    };
+}
+
+pub(crate) use impl_dom_interfaces_for_ty_helper;
+
+macro_rules! impl_dom_interfaces_for_ty {
+    ($dom_interface:ident, $ty:ident) => {
+        $crate::interfaces::impl_dom_interfaces_for_ty!($dom_interface, $ty, additional_generic_vars: <>, additional_generic_bounds: {});
+    };
+    (
+        $dom_interface:ident,
+        $ty:ident,
+        additional_generic_vars: <$($additional_generic_var:ident,)*>,
+        additional_generic_bounds: {$($additional_generic_bounds:tt)*}
+    ) => {
+        paste::paste! {
+            [<for_all_ $dom_interface:snake _ancestors>]!(
+                $crate::interfaces::impl_dom_interfaces_for_ty_helper,
+                ($ty, $dom_interface, <$($additional_generic_var,)*>, {$($additional_generic_bounds)*})
+            );
+        $crate::interfaces::impl_dom_interfaces_for_ty_helper!($dom_interface, ($ty, $dom_interface, <$($additional_generic_var,)*>, {$($additional_generic_bounds)*}));
+            [<for_all_ $dom_interface:snake _descendents>]!(
+                $crate::interfaces::impl_dom_interfaces_for_ty_helper,
+                ($ty, <$($additional_generic_var,)*>, {$($additional_generic_bounds)*})
+            );
+        }
+    };
+}
+
+pub(crate) use impl_dom_interfaces_for_ty;
+
 dom_interface_macro_and_trait_definitions!(
     HtmlElement {
         methods: {},

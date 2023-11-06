@@ -208,9 +208,9 @@ macro_rules! dom_interface_macro_and_trait_definitions_helper {
                 /// inherits from
                 #[allow(unused_macros)]
                 macro_rules! [<for_all_ $child_interface:snake _ancestors>] {
-                    ($mac:ident $extra_params:tt) => {
-                        $mac!($interface $extra_params);
-                        $crate::interfaces::[<for_all_ $interface:snake _ancestors>]!($mac $extra_params);
+                    ($mac:path, $extra_params:tt) => {
+                        $mac!($interface, $extra_params);
+                        $crate::interfaces::[<for_all_ $interface:snake _ancestors>]!($mac, $extra_params);
                     };
                 }
                 #[allow(unused_imports)]
@@ -222,10 +222,10 @@ macro_rules! dom_interface_macro_and_trait_definitions_helper {
             #[doc = concat!("`", stringify!($interface), "`")]
             #[allow(unused_macros)]
             macro_rules! [<for_all_ $interface:snake _descendents>] {
-                ($mac:ident $extra_params:tt) => {
+                ($mac:path, $extra_params:tt) => {
                     $(
-                        $mac!($child_interface $extra_params);
-                        $crate::interfaces::[<for_all_ $child_interface:snake _ descendents>]!($mac $extra_params);
+                        $mac!($child_interface, $extra_params);
+                        $crate::interfaces::[<for_all_ $child_interface:snake _ descendents>]!($mac, $extra_params);
                     )*
                 };
             }
@@ -262,11 +262,11 @@ macro_rules! dom_interface_macro_and_trait_definitions {
         /// Execute $mac which is a macro, that takes $dom_interface:ident (<optional macro parameters>), for all dom interfaces.
         /// It optionally passes arguments given to for_all_dom_interfaces! to $mac!
         macro_rules! for_all_dom_interfaces {
-            ($mac:ident $extra_params:tt) => {
-                $mac!(Element $extra_params);
+            ($mac:path, $extra_params:tt) => {
+                $mac!(Element, $extra_params);
                 paste::paste! {$(
-                    $mac!($interface $extra_params);
-                    $crate::interfaces::[<for_all_ $interface:snake _descendents>]!($mac $extra_params);
+                    $mac!($interface, $extra_params);
+                    $crate::interfaces::[<for_all_ $interface:snake _descendents>]!($mac, $extra_params);
                 )*}
             }
         }

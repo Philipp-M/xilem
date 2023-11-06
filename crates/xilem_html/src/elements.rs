@@ -161,7 +161,7 @@ impl<T, A, Children: ViewSequence<T, A>> crate::interfaces::HtmlElement<T, A>
 }
 
 macro_rules! generate_dom_interface_impl {
-    ($dom_interface:ident ($ty_name:ident, $t:ident, $a:ident, $vs:ident)) => {
+    ($dom_interface:ident, ($ty_name:ident, $t:ident, $a:ident, $vs:ident)) => {
         impl<$t, $a, $vs> $crate::interfaces::$dom_interface<$t, $a> for $ty_name<$t, $a, $vs> where
             $vs: $crate::view::ViewSequence<$t, $a>
         {
@@ -265,10 +265,10 @@ macro_rules! define_html_element {
             $ty_name(children, PhantomData)
         }
 
-        generate_dom_interface_impl!($dom_interface($ty_name, $t, $a, $vs));
+        generate_dom_interface_impl!($dom_interface, ($ty_name, $t, $a, $vs));
 
         paste::paste! {
-            $crate::interfaces::[<for_all_ $dom_interface:snake _ancestors>]!(generate_dom_interface_impl ($ty_name, $t, $a, $vs));
+            $crate::interfaces::[<for_all_ $dom_interface:snake _ancestors>]!(generate_dom_interface_impl, ($ty_name, $t, $a, $vs));
         }
     };
 }

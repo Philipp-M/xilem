@@ -178,7 +178,7 @@ where
 }
 
 macro_rules! impl_dom_interface_for_event_listener {
-    ($dom_interface:ident) => {
+    ($dom_interface:ident ()) => {
         impl<T, A, E, Ev, F, OA> $crate::interfaces::$dom_interface<T, A> for OnEvent<E, Ev, F>
         where
             F: Fn(&mut T, Ev) -> OA,
@@ -190,10 +190,10 @@ macro_rules! impl_dom_interface_for_event_listener {
     };
 }
 
-for_all_dom_interfaces!(impl_dom_interface_for_event_listener);
+for_all_dom_interfaces!(impl_dom_interface_for_event_listener());
 
 macro_rules! impl_dom_interface_for_event {
-    ($dom_interface:ident, $event_ty:ident, $web_sys_ty: ident) => {
+    ($dom_interface:ident ($event_ty:ident, $web_sys_ty: ident)) => {
         impl<T, A, E, C, OA> $crate::interfaces::$dom_interface<T, A>
             for $crate::events::$event_ty<T, A, E, C>
         where
@@ -208,7 +208,7 @@ macro_rules! impl_dom_interface_for_event {
 macro_rules! event_definitions {
     ($(($ty_name:ident, $event_name:literal, $web_sys_ty:ident)),*) => {
         $(
-        for_all_dom_interfaces!(impl_dom_interface_for_event, $ty_name, $web_sys_ty);
+        for_all_dom_interfaces!(impl_dom_interface_for_event ($ty_name, $web_sys_ty));
 
         pub struct $ty_name<T, A, ET, C> {
             target: ET,

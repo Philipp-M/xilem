@@ -50,7 +50,7 @@ impl<T, A, E: Element<T, A>> View<T, A> for Attr<T, A, E> {
 }
 
 macro_rules! impl_dom_interface_for_attr {
-    ($dom_interface:ident) => {
+    ($dom_interface:ident ()) => {
         impl<T, A, E: $crate::interfaces::$dom_interface<T, A>>
             $crate::interfaces::$dom_interface<T, A> for Attr<T, A, E>
         {
@@ -58,4 +58,4 @@ macro_rules! impl_dom_interface_for_attr {
     };
 }
 
-for_all_dom_interfaces!(impl_dom_interface_for_attr);
+for_all_dom_interfaces!(impl_dom_interface_for_attr());

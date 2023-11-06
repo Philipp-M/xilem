@@ -181,126 +181,197 @@ where
     );
 }
 
-macro_rules! dom_interface_macro_and_trait_definitions {
-    // $dollar workaround for not yet stabilized feature 'macro_metavar_expr'
-    ($dollar:tt, $($dom_interface:ident : $super_dom_interface: ident $body: tt),*) => {
-        $(
-        pub trait $dom_interface<T, A = ()>: $super_dom_interface<T, A> $body
-        )*
+// base case for ancestor macros, do nothing, because the body is in all the child interface macros...
+#[allow(unused_macros)]
+macro_rules! for_all_element_ancestors {
+    ($($_:tt)*) => {};
+}
+#[allow(unused_imports)]
+pub(crate) use for_all_element_ancestors;
 
-        /// Execute $mac which is a macro, that takes at least the $dom_interface:ident as parameter for all interface relatives.
-        /// For example for_all_dom_interface_relatives(HtmlVideoElement, my_mac, ...) invocates my_mac!(HtmlVideoElement, ...), my_mac!(HtmlMediaElement, ...), my_mac!(HtmlElement, ...) and my_mac!(Element, ...)
-        /// It optionally passes arguments given to for_all_dom_interface_relatives! to $mac!
-        macro_rules! for_all_dom_interface_relatives {
-            // base case, Element is the root interface for all kinds of DOM interfaces
-            (Element, $mac:ident $dollar($body_:tt)*) => {
-                $mac!(Element $dollar($body_)*);
-            };
-            $(($dom_interface, $mac:ident $dollar($body_:tt)*) => {
-                $mac!($dom_interface $dollar($body_)*);
-                $crate::interfaces::for_all_dom_interface_relatives!($super_dom_interface, $mac $dollar($body_)*);
-             };)*
+macro_rules! dom_interface_macro_and_trait_definitions_helper {
+    ($interface:ident {
+        methods: $_methods_body:tt,
+        child_interfaces: {
+            $($child_interface:ident {
+                methods: $child_methods_body:tt,
+                child_interfaces: $child_interface_body: tt
+            },)*
         }
+    }) => {
+        paste::paste! {
+            $(
+                pub trait $child_interface<T, A = ()>: $interface<T, A> $child_methods_body
 
-        pub(crate) use for_all_dom_interface_relatives;
-
-        /// Execute $mac which is a macro, that takes at least the $dom_interface:ident as parameter, for all dom interfaces.
-        /// It optionally passes arguments given to for_all_dom_interfaces! to $mac!
-        macro_rules! for_all_dom_interfaces {
-            ($mac:ident $dollar($body_:tt)*) => {
-                $mac!(Element $dollar($body_)*);
-                $($mac!($dom_interface $dollar($body_)*);)*
+                /// Execute $mac which is a macro, that takes $dom_interface:ident (<optional macro parameters>) as match arm for all interfaces that
+                #[doc = concat!("`", stringify!($child_interface), "`")]
+                /// inherits from
+                #[allow(unused_macros)]
+                macro_rules! [<for_all_ $child_interface:snake _ancestors>] {
+                    ($mac:ident $extra_params:tt) => {
+                        $mac!($interface $extra_params);
+                        $crate::interfaces::[<for_all_ $interface:snake _ancestors>]!($mac $extra_params);
+                    };
+                }
+                #[allow(unused_imports)]
+                pub(crate) use [<for_all_ $child_interface:snake _ancestors>];
+            )*
+        }
+        paste::paste! {
+            /// Execute $mac which is a macro, that takes $dom_interface:ident (<optional macro parameters>) as match arm for all interfaces that inherit from
+            #[doc = concat!("`", stringify!($interface), "`")]
+            #[allow(unused_macros)]
+            macro_rules! [<for_all_ $interface:snake _descendents>] {
+                ($mac:ident $extra_params:tt) => {
+                    $(
+                        $mac!($child_interface $extra_params);
+                        $crate::interfaces::[<for_all_ $child_interface:snake _ descendents>]!($mac $extra_params);
+                    )*
+                };
             }
+            #[allow(unused_imports)]
+            pub(crate) use [<for_all_ $interface:snake _descendents>];
         }
 
-        pub(crate) use for_all_dom_interfaces;
+        $(
+            $crate::interfaces::dom_interface_macro_and_trait_definitions_helper!(
+                $child_interface {
+                    methods: $child_methods_body,
+                    child_interfaces: $child_interface_body
+                }
+            );
+        )*
     };
 }
+pub(crate) use dom_interface_macro_and_trait_definitions_helper;
 
-dom_interface_macro_and_trait_definitions!($,
-    HtmlElement : Element {},
-    HtmlAnchorElement : HtmlElement {},
-    HtmlAreaElement : HtmlElement {},
-    HtmlAudioElement : HtmlMediaElement {},
-    HtmlBaseElement : HtmlElement {},
-    HtmlBodyElement : HtmlElement {},
-    HtmlBrElement : HtmlElement {},
-    HtmlButtonElement : HtmlElement {},
-    HtmlCanvasElement : HtmlElement {
-        fn width(self, value: u32) -> Attr<T, A, Self> {
-            self.attr("width", value)
+/// Recursively generates trait and macro definitions for all interfaces, defined below
+/// The macros that are defined with this macro are functionally composing a macro which is invoked for all ancestor and descendent interfaces of a given interface
+/// There's also a macro `for_all_dom_interfaces` which is run for all interfaces defined below
+/// For example `for_all_video_element_ancestors` is run for the interfaces `HtmlMediaElement`, `HtmlElement` and `Element`
+/// And `for_all_html_media_element_descendents` is run for the interfaces `HtmlAudioElement` and `HtmlVideoElement`
+macro_rules! dom_interface_macro_and_trait_definitions {
+    ($($interface:ident $interface_body:tt,)*) => {
+        $crate::interfaces::dom_interface_macro_and_trait_definitions_helper!(
+            Element {
+                methods: {},
+                child_interfaces: {$($interface $interface_body,)*}
+            }
+        );
+
+        /// Execute $mac which is a macro, that takes $dom_interface:ident (<optional macro parameters>), for all dom interfaces.
+        /// It optionally passes arguments given to for_all_dom_interfaces! to $mac!
+        macro_rules! for_all_dom_interfaces {
+            ($mac:ident $extra_params:tt) => {
+                $mac!(Element $extra_params);
+                paste::paste! {$(
+                    $mac!($interface $extra_params);
+                    $crate::interfaces::[<for_all_ $interface:snake _descendents>]!($mac $extra_params);
+                )*}
+            }
         }
-        fn height(self, value: u32) -> Attr<T, A, Self> {
-            self.attr("height", value)
+        pub(crate) use for_all_dom_interfaces;
+    }
+}
+
+dom_interface_macro_and_trait_definitions!(
+    HtmlElement {
+        methods: {},
+        child_interfaces: {
+            HtmlAnchorElement { methods: {}, child_interfaces: {} },
+            HtmlAreaElement { methods: {}, child_interfaces: {} },
+            HtmlBaseElement { methods: {}, child_interfaces: {} },
+            HtmlBodyElement { methods: {}, child_interfaces: {} },
+            HtmlBrElement { methods: {}, child_interfaces: {} },
+            HtmlButtonElement { methods: {}, child_interfaces: {} },
+            HtmlCanvasElement {
+                methods: {
+                    fn width(self, value: u32) -> Attr<T, A, Self> {
+                        self.attr("width", value)
+                    }
+                    fn height(self, value: u32) -> Attr<T, A, Self> {
+                        self.attr("height", value)
+                    }
+                },
+                child_interfaces: {}
+            },
+            HtmlDataElement { methods: {}, child_interfaces: {} },
+            HtmlDataListElement { methods: {}, child_interfaces: {} },
+            HtmlDetailsElement { methods: {}, child_interfaces: {} },
+            HtmlDialogElement { methods: {}, child_interfaces: {} },
+            HtmlDirectoryElement { methods: {}, child_interfaces: {} },
+            HtmlDivElement { methods: {}, child_interfaces: {} },
+            HtmlDListElement { methods: {}, child_interfaces: {} },
+            HtmlUnknownElement { methods: {}, child_interfaces: {} },
+            HtmlEmbedElement { methods: {}, child_interfaces: {} },
+            HtmlFieldSetElement { methods: {}, child_interfaces: {} },
+            HtmlFontElement { methods: {}, child_interfaces: {} },
+            HtmlFormElement { methods: {}, child_interfaces: {} },
+            HtmlFrameElement { methods: {}, child_interfaces: {} },
+            HtmlFrameSetElement { methods: {}, child_interfaces: {} },
+            HtmlHeadElement { methods: {}, child_interfaces: {} },
+            HtmlHeadingElement { methods: {}, child_interfaces: {} },
+            HtmlHrElement { methods: {}, child_interfaces: {} },
+            HtmlHtmlElement { methods: {}, child_interfaces: {} },
+            HtmlIFrameElement { methods: {}, child_interfaces: {} },
+            HtmlImageElement { methods: {}, child_interfaces: {} },
+            HtmlInputElement { methods: {}, child_interfaces: {} },
+            HtmlLabelElement { methods: {}, child_interfaces: {} },
+            HtmlLegendElement { methods: {}, child_interfaces: {} },
+            HtmlLiElement { methods: {}, child_interfaces: {} },
+            HtmlLinkElement { methods: {}, child_interfaces: {} },
+            HtmlMapElement { methods: {}, child_interfaces: {} },
+            HtmlMediaElement {
+                methods: {},
+                child_interfaces: {
+                    HtmlAudioElement { methods: {}, child_interfaces: {} },
+                    HtmlVideoElement {
+                        methods: {
+                            fn width(self, value: u32) -> Attr<T, A, Self> {
+                                self.attr("width", value)
+                            }
+                            fn height(self, value: u32) -> Attr<T, A, Self> {
+                                self.attr("height", value)
+                            }
+                        },
+                        child_interfaces: {}
+                    },
+                }
+            },
+            HtmlMenuElement { methods: {}, child_interfaces: {} },
+            HtmlMenuItemElement { methods: {}, child_interfaces: {} },
+            HtmlMetaElement { methods: {}, child_interfaces: {} },
+            HtmlMeterElement { methods: {}, child_interfaces: {} },
+            HtmlModElement { methods: {}, child_interfaces: {} },
+            HtmlObjectElement { methods: {}, child_interfaces: {} },
+            HtmlOListElement { methods: {}, child_interfaces: {} },
+            HtmlOptGroupElement { methods: {}, child_interfaces: {} },
+            HtmlOptionElement { methods: {}, child_interfaces: {} },
+            HtmlOutputElement { methods: {}, child_interfaces: {} },
+            HtmlParagraphElement { methods: {}, child_interfaces: {} },
+            HtmlParamElement { methods: {}, child_interfaces: {} },
+            HtmlPictureElement { methods: {}, child_interfaces: {} },
+            HtmlPreElement { methods: {}, child_interfaces: {} },
+            HtmlProgressElement { methods: {}, child_interfaces: {} },
+            HtmlQuoteElement { methods: {}, child_interfaces: {} },
+            HtmlScriptElement { methods: {}, child_interfaces: {} },
+            HtmlSelectElement { methods: {}, child_interfaces: {} },
+            HtmlSlotElement { methods: {}, child_interfaces: {} },
+            HtmlSourceElement { methods: {}, child_interfaces: {} },
+            HtmlSpanElement { methods: {}, child_interfaces: {} },
+            HtmlStyleElement { methods: {}, child_interfaces: {} },
+            HtmlTableCaptionElement { methods: {}, child_interfaces: {} },
+            HtmlTableCellElement { methods: {}, child_interfaces: {} },
+            HtmlTableColElement { methods: {}, child_interfaces: {} },
+            HtmlTableElement { methods: {}, child_interfaces: {} },
+            HtmlTableRowElement { methods: {}, child_interfaces: {} },
+            HtmlTableSectionElement { methods: {}, child_interfaces: {} },
+            HtmlTemplateElement { methods: {}, child_interfaces: {} },
+            HtmlTimeElement { methods: {}, child_interfaces: {} },
+            HtmlTextAreaElement { methods: {}, child_interfaces: {} },
+            HtmlTitleElement { methods: {}, child_interfaces: {} },
+            HtmlTrackElement { methods: {}, child_interfaces: {} },
+            HtmlUListElement { methods: {}, child_interfaces: {} },
         }
     },
-    HtmlDataElement : HtmlElement {},
-    HtmlDataListElement : HtmlElement {},
-    HtmlDetailsElement : HtmlElement {},
-    HtmlDialogElement : HtmlElement {},
-    HtmlDirectoryElement : HtmlElement {},
-    HtmlDivElement : HtmlElement {},
-    HtmlDListElement : HtmlElement {},
-    HtmlUnknownElement : HtmlElement {},
-    HtmlEmbedElement : HtmlElement {},
-    HtmlFieldSetElement : HtmlElement {},
-    HtmlFontElement : HtmlElement {},
-    HtmlFormElement : HtmlElement {},
-    HtmlFrameElement : HtmlElement {},
-    HtmlFrameSetElement : HtmlElement {},
-    HtmlHeadElement : HtmlElement {},
-    HtmlHeadingElement : HtmlElement {},
-    HtmlHrElement : HtmlElement {},
-    HtmlHtmlElement : HtmlElement {},
-    HtmlIFrameElement : HtmlElement {},
-    HtmlImageElement : HtmlElement {},
-    HtmlInputElement : HtmlElement {},
-    HtmlLabelElement : HtmlElement {},
-    HtmlLegendElement : HtmlElement {},
-    HtmlLiElement : HtmlElement {},
-    HtmlLinkElement : HtmlElement {},
-    HtmlMapElement : HtmlElement {},
-    HtmlMediaElement : HtmlElement {},
-    HtmlMenuElement : HtmlElement {},
-    HtmlMenuItemElement : HtmlElement {},
-    HtmlMetaElement : HtmlElement {},
-    HtmlMeterElement : HtmlElement {},
-    HtmlModElement : HtmlElement {},
-    HtmlObjectElement : HtmlElement {},
-    HtmlOListElement : HtmlElement {},
-    HtmlOptGroupElement : HtmlElement {},
-    HtmlOptionElement : HtmlElement {},
-    HtmlOutputElement : HtmlElement {},
-    HtmlParagraphElement : HtmlElement {},
-    HtmlParamElement : HtmlElement {},
-    HtmlPictureElement : HtmlElement {},
-    HtmlPreElement : HtmlElement {},
-    HtmlProgressElement : HtmlElement {},
-    HtmlQuoteElement : HtmlElement {},
-    HtmlScriptElement : HtmlElement {},
-    HtmlSelectElement : HtmlElement {},
-    HtmlSlotElement : HtmlElement {},
-    HtmlSourceElement : HtmlElement {},
-    HtmlSpanElement : HtmlElement {},
-    HtmlStyleElement : HtmlElement {},
-    HtmlTableCaptionElement : HtmlElement {},
-    HtmlTableCellElement : HtmlElement {},
-    HtmlTableColElement : HtmlElement {},
-    HtmlTableElement : HtmlElement {},
-    HtmlTableRowElement : HtmlElement {},
-    HtmlTableSectionElement : HtmlElement {},
-    HtmlTemplateElement : HtmlElement {},
-    HtmlTimeElement : HtmlElement {},
-    HtmlTextAreaElement : HtmlElement {},
-    HtmlTitleElement : HtmlElement {},
-    HtmlTrackElement : HtmlElement {},
-    HtmlUListElement : HtmlElement {},
-    HtmlVideoElement : HtmlMediaElement {
-        fn width(self, value: u32) -> Attr<T, A, Self> {
-            self.attr("width", value)
-        }
-        fn height(self, value: u32) -> Attr<T, A, Self> {
-            self.attr("height", value)
-        }
-    }
 );

@@ -33,7 +33,11 @@ pub trait Element<T, A = ()>: View<T, A> + ViewMarker + sealed::Sealed
 where
     Self: Sized,
 {
-    fn on<E, EH, OA>(self, event: impl Into<Cow<'static, str>>, handler: EH) -> OnEvent<Self, E, EH>
+    fn on<E, EH, OA>(
+        self,
+        event: impl Into<Cow<'static, str>>,
+        handler: EH,
+    ) -> OnEvent<T, A, Self, E, EH>
     where
         E: JsCast + 'static,
         OA: OptionalAction<A>,
@@ -43,16 +47,16 @@ where
         OnEvent::new(self, event, handler)
     }
 
-    fn on_with_options<E, EH, OA>(
+    fn on_with_options<Ev, EH, OA>(
         self,
         event: impl Into<Cow<'static, str>>,
         handler: EH,
         options: EventListenerOptions,
-    ) -> OnEvent<Self, E, EH>
+    ) -> OnEvent<T, A, Self, Ev, EH>
     where
-        E: JsCast + 'static,
+        Ev: JsCast + 'static,
         OA: OptionalAction<A>,
-        EH: Fn(&mut T, E) -> OA,
+        EH: Fn(&mut T, Ev) -> OA,
         Self: Sized,
     {
         OnEvent::new_with_options(self, event, handler, options)
@@ -189,7 +193,7 @@ macro_rules! for_all_element_ancestors {
 #[allow(unused_imports)]
 pub(crate) use for_all_element_ancestors;
 
-macro_rules! dom_interface_macro_and_trait_definitions_helper {
+macro_rules! dom_interface_macro_and_trait_definitions_impl {
     ($interface:ident {
         methods: $_methods_body:tt,
         child_interfaces: {
@@ -232,7 +236,7 @@ macro_rules! dom_interface_macro_and_trait_definitions_helper {
         }
 
         $(
-            $crate::interfaces::dom_interface_macro_and_trait_definitions_helper!(
+            $crate::interfaces::dom_interface_macro_and_trait_definitions_impl!(
                 $child_interface {
                     methods: $child_methods_body,
                     child_interfaces: $child_interface_body
@@ -241,42 +245,32 @@ macro_rules! dom_interface_macro_and_trait_definitions_helper {
         )*
     };
 }
-pub(crate) use dom_interface_macro_and_trait_definitions_helper;
+
+pub(crate) use dom_interface_macro_and_trait_definitions_impl;
 
 /// Recursively generates trait and macro definitions for all interfaces, defined below
 /// The macros that are defined with this macro are functionally composing a macro which is invoked for all ancestor and descendent interfaces of a given interface
-/// There's also a macro `for_all_dom_interfaces` which is run for all interfaces defined below
-/// For example `for_all_video_element_ancestors` is run for the interfaces `HtmlMediaElement`, `HtmlElement` and `Element`
+/// For example `for_all_html_video_element_ancestors!($mac, ())` invokes $mac! for the interfaces `HtmlMediaElement`, `HtmlElement` and `Element`
 /// And `for_all_html_media_element_descendents` is run for the interfaces `HtmlAudioElement` and `HtmlVideoElement`
 macro_rules! dom_interface_macro_and_trait_definitions {
     ($($interface:ident $interface_body:tt,)*) => {
-        $crate::interfaces::dom_interface_macro_and_trait_definitions_helper!(
+        $crate::interfaces::dom_interface_macro_and_trait_definitions_impl!(
             Element {
                 methods: {},
                 child_interfaces: {$($interface $interface_body,)*}
             }
         );
-
-        /// Execute $mac which is a macro, that takes $dom_interface:ident (<optional macro parameters>), for all dom interfaces.
-        /// It optionally passes arguments given to for_all_dom_interfaces! to $mac!
-        macro_rules! for_all_dom_interfaces {
-            ($mac:path, $extra_params:tt) => {
-                $mac!(Element, $extra_params);
-                $crate::interfaces::for_all_element_descendents!($mac, $extra_params);
-            }
-        }
-        pub(crate) use for_all_dom_interfaces;
     }
 }
 
 macro_rules! impl_dom_interfaces_for_ty_helper {
-    ($dom_interface:ident, ($ty:ident, <$($additional_generic_var:ident,)*>, {$($additional_generic_bounds:tt)*})) => {
-        $crate::interfaces::impl_dom_interfaces_for_ty_helper!($dom_interface, ($ty, $dom_interface, <$($additional_generic_var,)*>, {$($additional_generic_bounds)*}));
+    ($dom_interface:ident, ($ty:ident, <$($additional_generic_var:ident,)*>, <$($additional_generic_var_on_ty:ident,)*>, {$($additional_generic_bounds:tt)*})) => {
+        $crate::interfaces::impl_dom_interfaces_for_ty_helper!($dom_interface, ($ty, $dom_interface, <$($additional_generic_var,)*>, <$($additional_generic_var_on_ty,)*>, {$($additional_generic_bounds)*}));
     };
-    ($dom_interface:ident, ($ty:ident, $bound_interface:ident, <$($additional_generic_var:ident,)*>, {$($additional_generic_bounds:tt)*})) => {
-        impl<T, A, E, $($additional_generic_var,)*> $dom_interface<T, A> for $ty<T, A, E, $($additional_generic_var,)*>
+    ($dom_interface:ident, ($ty:ident, $bound_interface:ident, <$($additional_generic_var:ident,)*>, <$($additional_generic_var_on_ty:ident,)*>, {$($additional_generic_bounds:tt)*})) => {
+        impl<T, A, E, $($additional_generic_var,)*> $crate::interfaces::$dom_interface<T, A> for $ty<T, A, E, $($additional_generic_var_on_ty,)*>
         where
-            E: $bound_interface<T, A>,
+            E: $crate::interfaces::$bound_interface<T, A>,
             $($additional_generic_bounds)*
         {
         }
@@ -285,25 +279,24 @@ macro_rules! impl_dom_interfaces_for_ty_helper {
 
 pub(crate) use impl_dom_interfaces_for_ty_helper;
 
+/// Implement DOM interface traits for the given type and all descendent DOM interfaces,
+/// such that every possible method defined on the underlying element is accessible via typing
+/// The requires the type of signature Type<T, A, E>, whereas T is the AppState type, A, is Action, and E is the underlying Element type that is composed
+/// It additionally accepts generic vars (vars: <vars>) that is added on the impl<T, A, E, <vars>>, and vars_on_ty (Type<T, A, E, <vars_on_ty>>) and additional generic typebounds
 macro_rules! impl_dom_interfaces_for_ty {
     ($dom_interface:ident, $ty:ident) => {
-        $crate::interfaces::impl_dom_interfaces_for_ty!($dom_interface, $ty, additional_generic_vars: <>, additional_generic_bounds: {});
+        $crate::interfaces::impl_dom_interfaces_for_ty!($dom_interface, $ty, vars: <>, vars_on_ty: <>, bounds: {});
     };
-    (
-        $dom_interface:ident,
-        $ty:ident,
-        additional_generic_vars: <$($additional_generic_var:ident,)*>,
-        additional_generic_bounds: {$($additional_generic_bounds:tt)*}
-    ) => {
+    ($dom_interface:ident, $ty:ident, vars: <$($additional_generic_var:ident,)*>, vars_on_ty: <$($additional_generic_var_on_ty:ident,)*>, bounds: {$($additional_generic_bounds:tt)*}) => {
         paste::paste! {
-            [<for_all_ $dom_interface:snake _ancestors>]!(
+            $crate::interfaces::[<for_all_ $dom_interface:snake _ancestors>]!(
                 $crate::interfaces::impl_dom_interfaces_for_ty_helper,
-                ($ty, $dom_interface, <$($additional_generic_var,)*>, {$($additional_generic_bounds)*})
+                ($ty, $dom_interface, <$($additional_generic_var,)*>, <$($additional_generic_var_on_ty,)*>, {$($additional_generic_bounds)*})
             );
-        $crate::interfaces::impl_dom_interfaces_for_ty_helper!($dom_interface, ($ty, $dom_interface, <$($additional_generic_var,)*>, {$($additional_generic_bounds)*}));
-            [<for_all_ $dom_interface:snake _descendents>]!(
+            $crate::interfaces::impl_dom_interfaces_for_ty_helper!($dom_interface, ($ty, $dom_interface, <$($additional_generic_var,)*>, <$($additional_generic_var_on_ty,)*>, {$($additional_generic_bounds)*}));
+            $crate::interfaces::[<for_all_ $dom_interface:snake _descendents>]!(
                 $crate::interfaces::impl_dom_interfaces_for_ty_helper,
-                ($ty, <$($additional_generic_var,)*>, {$($additional_generic_bounds)*})
+                ($ty, <$($additional_generic_var,)*>, <$($additional_generic_var_on_ty,)*>, {$($additional_generic_bounds)*})
             );
         }
     };

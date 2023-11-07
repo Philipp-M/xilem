@@ -262,10 +262,7 @@ macro_rules! dom_interface_macro_and_trait_definitions {
         macro_rules! for_all_dom_interfaces {
             ($mac:path, $extra_params:tt) => {
                 $mac!(Element, $extra_params);
-                paste::paste! {$(
-                    $mac!($interface, $extra_params);
-                    $crate::interfaces::[<for_all_ $interface:snake _descendents>]!($mac, $extra_params);
-                )*}
+                $crate::interfaces::for_all_element_descendents!($mac, $extra_params);
             }
         }
         pub(crate) use for_all_dom_interfaces;

@@ -284,6 +284,8 @@ define_elements!(
     // https://developer.mozilla.org/en-US/docs/Web/HTML/Element
     // DOM interfaces copied from https://html.spec.whatwg.org/multipage/grouping-content.html and friends
 
+    // TODO include document metadata elements?
+
     // content sectioning
     (Address, address, HtmlElement),
     (Article, article, HtmlElement),
@@ -310,6 +312,7 @@ define_elements!(
     (Figure, figure, HtmlElement),
     (Hr, hr, HtmlHrElement),
     (Li, li, HtmlLiElement),
+    (Link, link, HtmlLinkElement),
     (Menu, menu, HtmlMenuElement),
     (Ol, ol, HtmlOListElement),
     (P, p, HtmlParagraphElement),

@@ -206,14 +206,12 @@ macro_rules! dom_interface_macro_and_trait_definitions_helper {
                 /// Execute $mac which is a macro, that takes $dom_interface:ident (<optional macro parameters>) as match arm for all interfaces that
                 #[doc = concat!("`", stringify!($child_interface), "`")]
                 /// inherits from
-                #[allow(unused_macros)]
                 macro_rules! [<for_all_ $child_interface:snake _ancestors>] {
                     ($mac:path, $extra_params:tt) => {
                         $mac!($interface, $extra_params);
                         $crate::interfaces::[<for_all_ $interface:snake _ancestors>]!($mac, $extra_params);
                     };
                 }
-                #[allow(unused_imports)]
                 pub(crate) use [<for_all_ $child_interface:snake _ancestors>];
             )*
         }
@@ -322,8 +320,8 @@ dom_interface_macro_and_trait_definitions!(
         child_interfaces: {
             HtmlAnchorElement { methods: {}, child_interfaces: {} },
             HtmlAreaElement { methods: {}, child_interfaces: {} },
-            HtmlBaseElement { methods: {}, child_interfaces: {} },
-            HtmlBodyElement { methods: {}, child_interfaces: {} },
+            // HtmlBaseElement { methods: {}, child_interfaces: {} }, TODO include metadata?
+            // HtmlBodyElement { methods: {}, child_interfaces: {} }, TODO include body element?
             HtmlBrElement { methods: {}, child_interfaces: {} },
             HtmlButtonElement { methods: {}, child_interfaces: {} },
             HtmlCanvasElement {
@@ -341,20 +339,20 @@ dom_interface_macro_and_trait_definitions!(
             HtmlDataListElement { methods: {}, child_interfaces: {} },
             HtmlDetailsElement { methods: {}, child_interfaces: {} },
             HtmlDialogElement { methods: {}, child_interfaces: {} },
-            HtmlDirectoryElement { methods: {}, child_interfaces: {} },
+            // HtmlDirectoryElement { methods: {}, child_interfaces: {} }, deprecated
             HtmlDivElement { methods: {}, child_interfaces: {} },
             HtmlDListElement { methods: {}, child_interfaces: {} },
-            HtmlUnknownElement { methods: {}, child_interfaces: {} },
+            // HtmlUnknownElement { methods: {}, child_interfaces: {} }, useful at all?
             HtmlEmbedElement { methods: {}, child_interfaces: {} },
             HtmlFieldSetElement { methods: {}, child_interfaces: {} },
-            HtmlFontElement { methods: {}, child_interfaces: {} },
+            // HtmlFontElement { methods: {}, child_interfaces: {} }, deprecated
             HtmlFormElement { methods: {}, child_interfaces: {} },
-            HtmlFrameElement { methods: {}, child_interfaces: {} },
-            HtmlFrameSetElement { methods: {}, child_interfaces: {} },
-            HtmlHeadElement { methods: {}, child_interfaces: {} },
+            // HtmlFrameElement { methods: {}, child_interfaces: {} }, deprecated
+            // HtmlFrameSetElement { methods: {}, child_interfaces: {} }, deprecacted
+            // HtmlHeadElement { methods: {}, child_interfaces: {} }, TODO include metadata?
             HtmlHeadingElement { methods: {}, child_interfaces: {} },
             HtmlHrElement { methods: {}, child_interfaces: {} },
-            HtmlHtmlElement { methods: {}, child_interfaces: {} },
+            // HtmlHtmlElement { methods: {}, child_interfaces: {} }, TODO include metadata?
             HtmlIFrameElement { methods: {}, child_interfaces: {} },
             HtmlImageElement { methods: {}, child_interfaces: {} },
             HtmlInputElement { methods: {}, child_interfaces: {} },
@@ -381,8 +379,8 @@ dom_interface_macro_and_trait_definitions!(
                 }
             },
             HtmlMenuElement { methods: {}, child_interfaces: {} },
-            HtmlMenuItemElement { methods: {}, child_interfaces: {} },
-            HtmlMetaElement { methods: {}, child_interfaces: {} },
+            // HtmlMenuItemElement { methods: {}, child_interfaces: {} }, deprecated
+            // HtmlMetaElement { methods: {}, child_interfaces: {} }, TODO include metadata?
             HtmlMeterElement { methods: {}, child_interfaces: {} },
             HtmlModElement { methods: {}, child_interfaces: {} },
             HtmlObjectElement { methods: {}, child_interfaces: {} },
@@ -391,7 +389,7 @@ dom_interface_macro_and_trait_definitions!(
             HtmlOptionElement { methods: {}, child_interfaces: {} },
             HtmlOutputElement { methods: {}, child_interfaces: {} },
             HtmlParagraphElement { methods: {}, child_interfaces: {} },
-            HtmlParamElement { methods: {}, child_interfaces: {} },
+            // HtmlParamElement { methods: {}, child_interfaces: {} }, deprecated
             HtmlPictureElement { methods: {}, child_interfaces: {} },
             HtmlPreElement { methods: {}, child_interfaces: {} },
             HtmlProgressElement { methods: {}, child_interfaces: {} },
@@ -401,7 +399,7 @@ dom_interface_macro_and_trait_definitions!(
             HtmlSlotElement { methods: {}, child_interfaces: {} },
             HtmlSourceElement { methods: {}, child_interfaces: {} },
             HtmlSpanElement { methods: {}, child_interfaces: {} },
-            HtmlStyleElement { methods: {}, child_interfaces: {} },
+            // HtmlStyleElement { methods: {}, child_interfaces: {} }, TODO include metadata?
             HtmlTableCaptionElement { methods: {}, child_interfaces: {} },
             HtmlTableCellElement { methods: {}, child_interfaces: {} },
             HtmlTableColElement { methods: {}, child_interfaces: {} },
@@ -411,7 +409,7 @@ dom_interface_macro_and_trait_definitions!(
             HtmlTemplateElement { methods: {}, child_interfaces: {} },
             HtmlTimeElement { methods: {}, child_interfaces: {} },
             HtmlTextAreaElement { methods: {}, child_interfaces: {} },
-            HtmlTitleElement { methods: {}, child_interfaces: {} },
+            // HtmlTitleElement { methods: {}, child_interfaces: {} }, TODO include metadata?
             HtmlTrackElement { methods: {}, child_interfaces: {} },
             HtmlUListElement { methods: {}, child_interfaces: {} },
         }

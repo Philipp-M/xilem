@@ -13,7 +13,7 @@
 // limitations under the License.
 
 use crate::view::{Cx, ElementCollection, ViewSequence};
-use crate::widget::{ChangeFlags, Pod};
+use crate::widget::ChangeFlags;
 use crate::MessageResult;
 use std::any::Any;
 use std::marker::PhantomData;
@@ -49,7 +49,7 @@ impl<T, A, VT: ViewSequence<T, A>, F: Fn(usize) -> VT + Send> ViewSequence<T, A>
 {
     type State = ListState<T, A, VT>;
 
-    fn build(&self, cx: &mut Cx, elements: &mut impl ElementCollection<Pod>) -> Self::State {
+    fn build(&self, cx: &mut Cx, elements: &mut impl ElementCollection) -> Self::State {
         let leading = elements.len();
 
         let views =
@@ -72,7 +72,7 @@ impl<T, A, VT: ViewSequence<T, A>, F: Fn(usize) -> VT + Send> ViewSequence<T, A>
         cx: &mut Cx,
         prev: &Self,
         state: &mut Self::State,
-        elements: &mut impl ElementCollection<Pod>,
+        elements: &mut impl ElementCollection,
     ) -> ChangeFlags {
         // Common length
         let leading = elements.len();

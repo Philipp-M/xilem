@@ -40,7 +40,9 @@ where
             .create_element_ns(Some("http://www.w3.org/2000/svg"), "g")
             .unwrap();
         let mut elements = vec![];
-        let (id, state) = cx.with_new_id(|cx| self.children.build(cx, &mut elements));
+        let mut scratch = vec![];
+        let mut splice = VecSplice::new(&mut elements, &mut scratch);
+        let (id, state) = cx.with_new_id(|cx| self.children.build(cx, &mut splice));
         for child in &elements {
             el.append_child(child.0.as_element_ref()).unwrap();
         }

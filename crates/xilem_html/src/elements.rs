@@ -66,8 +66,10 @@ where
         let (el, attributes) = cx.build_element(HTML_NS, &self.name);
 
         let mut child_elements = vec![];
-        let (id, children_states) =
-            cx.with_new_id(|cx| self.children.build(cx, &mut child_elements));
+        let mut scratch = vec![];
+        let mut splice = VecSplice::new(&mut child_elements, &mut scratch);
+
+        let (id, children_states) = cx.with_new_id(|cx| self.children.build(cx, &mut splice));
 
         for child in &child_elements {
             el.append_child(child.0.as_node_ref()).unwrap_throw();
@@ -83,7 +85,7 @@ where
         let state = ElementState {
             children_states,
             child_elements,
-            scratch: vec![],
+            scratch,
             attributes,
         };
         (id, state, el)
@@ -207,8 +209,11 @@ macro_rules! define_element {
                 let (el, attributes) = cx.build_element($ns, $tag_name);
 
                 let mut child_elements = vec![];
-                let (id, children_states) =
-                    cx.with_new_id(|cx| self.0.build(cx, &mut child_elements));
+                let mut scratch = vec![];
+                let mut splice = VecSplice::new(&mut child_elements, &mut scratch);
+
+                let (id, children_states) = cx.with_new_id(|cx| self.0.build(cx, &mut splice));
+
                 for child in &child_elements {
                     el.append_child(child.0.as_node_ref()).unwrap_throw();
                 }
@@ -223,7 +228,7 @@ macro_rules! define_element {
                 let state = ElementState {
                     children_states,
                     child_elements,
-                    scratch: vec![],
+                    scratch,
                     attributes,
                 };
                 (id, state, el)

@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::{Any, TypeId}, rc::Rc};
 
 use bitflags::bitflags;
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
@@ -44,6 +44,7 @@ fn remove_attribute(element: &web_sys::Element, name: &str) {
 pub struct Cx {
     id_path: IdPath,
     document: Document,
+    pub(crate) templates: VecMap<TypeId, (web_sys::Node, Rc<dyn Any>)>,
     // TODO There's likely a cleaner more robust way to propagate the attributes to an element
     pub(crate) current_element_attributes: VecMap<CowStr, AttributeValue>,
     app_ref: Option<Box<dyn AppRunner>>,
@@ -69,6 +70,7 @@ impl Cx {
             document: crate::document(),
             app_ref: None,
             current_element_attributes: Default::default(),
+            templates: VecMap::default(),
         }
     }
 

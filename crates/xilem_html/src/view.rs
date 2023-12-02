@@ -4,11 +4,10 @@
 //! Integration with xilem_core. This instantiates the View and related
 //! traits for DOM node generation.
 
+use crate::{context::Cx, ChangeFlags, Hydrate};
 use std::{any::Any, borrow::Cow, ops::Deref};
-
+use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult};
-
-use crate::{context::Cx, ChangeFlags};
 
 pub(crate) mod sealed {
     pub trait Sealed {}
@@ -130,6 +129,15 @@ macro_rules! impl_string_view {
                 MessageResult::Stale(message)
             }
         }
+        impl<T, A> Hydrate<T, A> for $ty {
+            fn hydrate(
+                &self,
+                _cx: &mut Cx,
+                element: web_sys::Node,
+            ) -> (Id, Self::State, Self::Element) {
+                (Id::next(), (), element.dyn_into().unwrap_throw())
+            }
+        }
     };
 }
 
@@ -174,6 +182,15 @@ macro_rules! impl_to_string_view {
                 _app_state: &mut T,
             ) -> MessageResult<A> {
                 MessageResult::Stale(message)
+            }
+        }
+        impl<T, A> Hydrate<T, A> for $ty {
+            fn hydrate(
+                &self,
+                _cx: &mut Cx,
+                element: web_sys::Node,
+            ) -> (Id, Self::State, Self::Element) {
+                (Id::next(), (), element.dyn_into().unwrap_throw())
             }
         }
     };

@@ -1,7 +1,8 @@
 use wasm_bindgen::throw_str;
 
 use crate::{
-    interfaces::for_all_element_descendents, ChangeFlags, Cx, Pod, View, ViewMarker, ViewSequence,
+    interfaces::for_all_element_descendents, ChangeFlags, Cx, Hydrate, HydrateSequence, Pod, View,
+    ViewMarker, ViewSequence,
 };
 
 macro_rules! impl_dom_traits {
@@ -40,6 +41,26 @@ macro_rules! one_of_view {
             }
         }
         impl<$($vars),+> ViewMarker for $ident<$($vars),+> {}
+
+        impl<VT, VA, $($vars),+> Hydrate<VT, VA> for $ident<$($vars),+>
+        where
+            $($vars: Hydrate<VT, VA>,)+
+        {
+            fn hydrate(
+                &self,
+                cx: &mut Cx,
+                element: web_sys::Node,
+            ) -> (xilem_core::Id, Self::State, Self::Element) {
+                match self {
+                    $(
+                        $ident::$vars(view) => {
+                            let (id, state, el) = view.hydrate(cx, element);
+                            (id, $ident::$vars(state), $ident::$vars(el))
+                        }
+                    )+
+                }
+            }
+        }
 
         impl<VT, VA, $($vars),+> View<VT, VA> for $ident<$($vars),+>
         where
@@ -154,6 +175,27 @@ macro_rules! one_of_sequence {
         #[doc = $first_doc_line:literal]
         $ident:ident { $( $vars:ident ),+ }
     ) => {
+
+        impl<VT, VA, $($vars),+> HydrateSequence<VT, VA> for $ident<$($vars),+>
+        where $(
+            $vars: HydrateSequence<VT, VA>,
+        )+ {
+            fn hydrate(
+                &self,
+                cx: &mut Cx,
+                elements: &mut Vec<Pod>,
+                cur_node: &mut Option<web_sys::Node>,
+            ) -> Self::State {
+                match self {
+                    $(
+                        $ident::$vars(view_sequence) => {
+                            $ident::$vars(view_sequence.hydrate(cx, elements, cur_node))
+                        }
+                    )+
+                }
+            }
+        }
+
         #[doc = $first_doc_line]
         ///
         /// It is a statically-typed alternative to the type-erased `AnyView`.

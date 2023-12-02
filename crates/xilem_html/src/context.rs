@@ -121,8 +121,15 @@ impl Cx {
             .document
             .create_element_ns(Some(ns), name)
             .expect("could not create element");
-        let attributes = self.apply_attributes(&el);
+        let attributes = self.apply_attributes(&el, false);
         (el, attributes)
+    }
+
+    pub(crate) fn hydrate_element(
+        &mut self,
+        element: &web_sys::Element,
+    ) -> VecMap<CowStr, AttributeValue> {
+        self.apply_attributes(element, true)
     }
 
     pub(crate) fn rebuild_element(
@@ -149,14 +156,17 @@ impl Cx {
         }
     }
 
-    pub(crate) fn apply_attributes(
+    fn apply_attributes(
         &mut self,
         element: &web_sys::Element,
+        hydrate: bool,
     ) -> VecMap<CowStr, AttributeValue> {
         let mut attributes = VecMap::default();
         std::mem::swap(&mut attributes, &mut self.current_element_attributes);
-        for (name, value) in attributes.iter() {
-            set_attribute(element, name, &value.serialize());
+        if !hydrate {
+            for (name, value) in attributes.iter() {
+                set_attribute(element, name, &value.serialize());
+            }
         }
         attributes
     }

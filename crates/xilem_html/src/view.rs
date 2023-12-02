@@ -129,6 +129,7 @@ macro_rules! impl_string_view {
                 MessageResult::Stale(message)
             }
         }
+
         impl<T, A> Hydrate<T, A> for $ty {
             fn hydrate(
                 &self,
@@ -184,6 +185,7 @@ macro_rules! impl_to_string_view {
                 MessageResult::Stale(message)
             }
         }
+
         impl<T, A> Hydrate<T, A> for $ty {
             fn hydrate(
                 &self,

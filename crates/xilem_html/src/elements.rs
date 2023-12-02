@@ -160,7 +160,7 @@ where
     fn hydrate(&self, cx: &mut Cx, node: web_sys::Node) -> (Id, Self::State, Self::Element) {
         let el: Self::Element = node.dyn_into().unwrap_throw();
 
-        let attributes = cx.apply_attributes(&el);
+        let attributes = cx.hydrate_element(&el);
 
         let mut child_elements = vec![];
         let mut first_child = el.first_child();
@@ -327,7 +327,7 @@ macro_rules! define_element {
             ) -> (Id, Self::State, Self::Element) {
                 let el: Self::Element = node.dyn_into().unwrap_throw();
 
-                let attributes = cx.apply_attributes(&el);
+                let attributes = cx.hydrate_element(&el);
 
                 let mut child_elements = vec![];
                 let mut first_child = el.first_child();

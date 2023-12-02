@@ -5,7 +5,7 @@ use xilem_core::{Id, MessageResult, VecSplice};
 
 use crate::{
     interfaces::sealed::Sealed, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx,
-    Pod, View, ViewMarker, ViewSequence, HTML_NS,
+    Hydrate, HydrateSequence, Pod, View, ViewMarker, ViewSequence, HTML_NS,
 };
 
 use super::interfaces::Element;
@@ -153,6 +153,38 @@ where
     }
 }
 
+impl<T, A, Children> Hydrate<T, A> for CustomElement<T, A, Children>
+where
+    Children: HydrateSequence<T, A>,
+{
+    fn hydrate(&self, cx: &mut Cx, node: web_sys::Node) -> (Id, Self::State, Self::Element) {
+        let el: Self::Element = node.dyn_into().unwrap_throw();
+
+        let attributes = cx.hydrate_element(&el);
+
+        let mut child_elements = vec![];
+        let mut first_child = el.first_child();
+        let (id, children_states) = cx.with_new_id(|cx| {
+            self.children
+                .hydrate(cx, &mut child_elements, &mut first_child)
+        });
+
+        // Set the id used internally to the `data-debugid` attribute.
+        // This allows the user to see if an element has been re-created or only altered.
+        #[cfg(debug_assertions)]
+        el.set_attribute("data-debugid", &id.to_raw().to_string())
+            .unwrap_throw();
+
+        let state = ElementState {
+            children_states,
+            child_elements,
+            scratch: vec![],
+            attributes,
+        };
+        (id, state, el)
+    }
+}
+
 impl<T, A, Children: ViewSequence<T, A>> Element<T, A> for CustomElement<T, A, Children> {}
 impl<T, A, Children: ViewSequence<T, A>> crate::interfaces::HtmlElement<T, A>
     for CustomElement<T, A, Children>
@@ -286,6 +318,37 @@ macro_rules! define_element {
         paste::paste! {
             $crate::interfaces::[<for_all_ $dom_interface:snake _ancestors>]!(generate_dom_interface_impl, ($ty_name, $t, $a, $vs));
         }
+
+        impl<$t, $a, $vs: HydrateSequence<$t, $a>> Hydrate<$t, $a> for $ty_name<$t, $a, $vs> {
+            fn hydrate(
+                &self,
+                cx: &mut Cx,
+                node: web_sys::Node,
+            ) -> (Id, Self::State, Self::Element) {
+                let el: Self::Element = node.dyn_into().unwrap_throw();
+
+                let attributes = cx.hydrate_element(&el);
+
+                let mut child_elements = vec![];
+                let mut first_child = el.first_child();
+                let (id, children_states) = cx.with_new_id(|cx| self.0.hydrate(cx, &mut child_elements, &mut first_child));
+
+                // Set the id used internally to the `data-debugid` attribute.
+                // This allows the user to see if an element has been re-created or only altered.
+                #[cfg(debug_assertions)]
+                el.set_attribute("data-debugid", &id.to_raw().to_string())
+                    .unwrap_throw();
+
+                let el = el.dyn_into().unwrap_throw();
+                let state = ElementState {
+                    children_states,
+                    child_elements,
+                    scratch: vec![],
+                    attributes,
+                };
+                (id, state, el)
+            }
+        }
     };
 }
 
@@ -299,6 +362,7 @@ macro_rules! define_elements {
         use crate::{
             interfaces::sealed::Sealed, view::DomNode,
             ChangeFlags, Cx, View, ViewMarker, ViewSequence,
+            Hydrate, HydrateSequence
         };
 
         $(define_element!(crate::$ns, $element_def);)*

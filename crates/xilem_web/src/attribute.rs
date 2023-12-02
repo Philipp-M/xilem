@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 
 use xilem_core::{Id, MessageResult};
 
-use crate::{interfaces::sealed::Sealed, AttributeValue, ChangeFlags, Cx, View, ViewMarker};
+use crate::{
+    interfaces::sealed::Sealed, AttributeValue, ChangeFlags, Cx, Hydrate, View, ViewMarker,
+};
 
 use super::interfaces::Element;
 
@@ -50,3 +52,10 @@ impl<E: Element<T, A>, T, A> View<T, A> for Attr<E, T, A> {
 }
 
 crate::interfaces::impl_dom_interfaces_for_ty!(Element, Attr);
+
+impl<T, A, E: Element<T, A> + Hydrate<T, A>> Hydrate<T, A> for Attr<E, T, A> {
+    fn hydrate(&self, cx: &mut Cx, node: web_sys::Node) -> (Id, Self::State, Self::Element) {
+        cx.add_attr_to_element(&self.name, &self.value);
+        self.element.hydrate(cx, node)
+    }
+}

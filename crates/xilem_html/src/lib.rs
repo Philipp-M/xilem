@@ -33,7 +33,7 @@ pub use one_of::{
 };
 pub use optional_action::{Action, OptionalAction};
 pub use view::{
-    memoize, static_view, Adapt, AdaptState, AdaptThunk, AnyView, ElementCollection, Memoize,
+    memoize, static_view, Adapt, AdaptState, AdaptThunk, AnyView, ElementsSplice, Memoize,
     MemoizeState, Pod, View, ViewMarker, ViewSequence,
 };
 pub use view_ext::ViewExt;

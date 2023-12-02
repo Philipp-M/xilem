@@ -1,7 +1,7 @@
 use wasm_bindgen::throw_str;
 
 use crate::{
-    interfaces::for_all_element_descendents, ChangeFlags, Cx, ElementCollection, View, ViewMarker,
+    interfaces::for_all_element_descendents, ChangeFlags, Cx, ElementsSplice, View, ViewMarker,
     ViewSequence,
 };
 
@@ -167,7 +167,7 @@ macro_rules! one_of_sequence {
         )+ {
             type State = $ident<$($vars::State),+>;
 
-            fn build(&self, cx: &mut Cx, elements: &mut impl ElementCollection) -> Self::State {
+            fn build(&self, cx: &mut Cx, elements: &mut impl ElementsSplice) -> Self::State {
                 match self {
                     $(
                         $ident::$vars(view_sequence) => {
@@ -182,7 +182,7 @@ macro_rules! one_of_sequence {
                 cx: &mut Cx,
                 prev: &Self,
                 state: &mut Self::State,
-                elements: &mut impl ElementCollection,
+                elements: &mut impl ElementsSplice,
             ) -> ChangeFlags {
                 match (prev, self) {
                     $(

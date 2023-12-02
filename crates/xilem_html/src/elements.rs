@@ -5,7 +5,7 @@ use xilem_core::{Id, MessageResult, VecSplice};
 
 use crate::{
     interfaces::sealed::Sealed, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx,
-    ElementCollection, Pod, View, ViewMarker, ViewSequence, HTML_NS,
+    ElementsSplice, Pod, View, ViewMarker, ViewSequence, HTML_NS,
 };
 
 use super::interfaces::Element;
@@ -70,26 +70,28 @@ impl<'a, 'b, 'c> ChildrenSplice<'a, 'b, 'c> {
     }
 }
 
-impl<'a, 'b, 'c> ElementCollection for ChildrenSplice<'a, 'b, 'c> {
-    fn push(&mut self, element: Pod) {
+impl<'a, 'b, 'c> ElementsSplice for ChildrenSplice<'a, 'b, 'c> {
+    fn push(&mut self, element: Pod, _id: Id) {
         let _ = self.parent.append_child(element.0.as_node_ref());
         self.children.push(element);
     }
 
-    fn mutate<F: FnOnce(&mut Pod) -> ChangeFlags>(&mut self, f: F) -> ChangeFlags {
+    fn mutate<F>(&mut self, f: F, id: &mut Id) -> ChangeFlags
+    where
+        F: FnOnce(&mut Pod, &mut Id) -> ChangeFlags,
+    {
         let idx = self.len() as u32;
         let el = self.children.mutate();
         let before_abi = el.0.as_node_ref().into_abi();
-        let mut changeflags = f(el);
+        let mut changeflags = f(el, id);
 
         if changeflags.contains(ChangeFlags::tree_structure()) {
-            let after_abi = el.0.as_node_ref().into_abi();
+            let el = el.0.as_node_ref();
+            let after_abi = el.into_abi();
             // TODO is this comparison actually safe?
             if before_abi != after_abi {
                 let old = self.parent.child_nodes().get(idx).unwrap_throw();
-                self.parent
-                    .replace_child(el.0.as_node_ref(), &old)
-                    .unwrap_throw();
+                self.parent.replace_child(el, &old).unwrap_throw();
             }
         }
         changeflags.remove(ChangeFlags::tree_structure());

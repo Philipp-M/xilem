@@ -59,8 +59,13 @@ where
         let mut scratch = vec![];
         let mut splice = VecSplice::new(&mut state.elements, &mut scratch);
         let mut changed = cx.with_id(*id, |cx| {
-            self.children
-                .rebuild(cx, &prev.children, &mut state.state, &mut splice)
+            self.children.rebuild(
+                cx,
+                &prev.children,
+                &mut state.state,
+                &mut splice,
+                &mut Vec::new(),
+            )
         });
         if changed.contains(ChangeFlags::STRUCTURE) {
             // This is crude and will result in more DOM traffic than needed.

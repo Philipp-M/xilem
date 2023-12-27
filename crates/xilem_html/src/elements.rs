@@ -4,8 +4,10 @@ use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult, VecSplice};
 
 use crate::{
-    interfaces::sealed::Sealed, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx,
-    Pod, View, ViewMarker, ViewSequence, HTML_NS,
+    interfaces::sealed::Sealed,
+    vecmap::VecMap,
+    view::{DomNode, ViewSeqMutation},
+    AttributeValue, ChangeFlags, Cx, Pod, View, ViewMarker, ViewSequence, HTML_NS,
 };
 
 use super::interfaces::Element;
@@ -19,6 +21,7 @@ pub struct ElementState<ViewSeqState> {
     pub(crate) children_states: ViewSeqState,
     pub(crate) attributes: VecMap<CowStr, AttributeValue>,
     pub(crate) child_elements: Vec<Pod>,
+    pub(crate) mutations: Vec<ViewSeqMutation>,
     pub(crate) scratch: Vec<Pod>,
 }
 
@@ -41,6 +44,11 @@ pub fn custom_element<T, A, Children: ViewSequence<T, A>>(
         children,
         phantom: PhantomData,
     }
+}
+
+struct WithId<V> {
+    id: String,
+    el: V,
 }
 
 impl<T, A, Children> CustomElement<T, A, Children> {
@@ -66,12 +74,15 @@ where
         let (el, attributes) = cx.build_element(HTML_NS, &self.name);
 
         let mut child_elements = vec![];
+        let mut mutations = vec![];
         let (id, children_states) =
-            cx.with_new_id(|cx| self.children.build(cx, &mut child_elements));
+            cx.with_new_id(|cx| self.children.build(cx, &mut child_elements, &mut mutations));
 
         for child in &child_elements {
             el.append_child(child.0.as_node_ref()).unwrap_throw();
         }
+        // web_sys::console::log_1(&format!("element build: {:?}", mutations).into());
+        mutations.clear(); // TODO do something with it, tree structure tracking?
 
         // Set the id used internally to the `data-debugid` attribute.
         // This allows the user to see if an element has been re-created or only altered.
@@ -85,6 +96,7 @@ where
             child_elements,
             scratch: vec![],
             attributes,
+            mutations,
         };
         (id, state, el)
     }
@@ -120,21 +132,51 @@ where
 
         changed |= cx.rebuild_element(element, &mut state.attributes);
 
+        let old_len = state.child_elements.len();
         // update children
         let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
         changed |= cx.with_id(*id, |cx| {
-            self.children
-                .rebuild(cx, &prev.children, &mut state.children_states, &mut splice)
+            self.children.rebuild(
+                cx,
+                &prev.children,
+                &mut state.children_states,
+                &mut splice,
+                &mut state.mutations,
+            )
         });
         if changed.contains(ChangeFlags::STRUCTURE) {
-            // This is crude and will result in more DOM traffic than needed.
-            // The right thing to do is diff the new state of the children id
-            // vector against the old, and derive DOM mutations from that.
-            while let Some(child) = element.first_child() {
-                element.remove_child(&child).unwrap_throw();
+            let mut child_idx = 0;
+            let node_list = element.child_nodes();
+            // element.child_nodes()
+            if let Some(ViewSeqMutation::Delete(count)) = state.mutations.get(0) {
+                if *count == old_len {
+                    element.set_text_content(None);
+                    state.mutations.clear();
+                }
             }
-            for child in &state.child_elements {
-                element.append_child(child.0.as_node_ref()).unwrap_throw();
+            for mutation in &state.mutations {
+                match mutation {
+                    ViewSeqMutation::Delete(count) => {
+                        for _ in 0..*count {
+                            let child = node_list.get(child_idx).unwrap_throw();
+                            element.remove_child(&child).unwrap_throw();
+                        }
+                    }
+                    ViewSeqMutation::Skip(count) => child_idx += *count as u32,
+                    ViewSeqMutation::Insert(_) => {
+                        let child = node_list.get(child_idx).unwrap_throw();
+                        element
+                            .insert_before(
+                                state.child_elements[child_idx as usize].0.as_node_ref(),
+                                Some(&child),
+                            )
+                            .unwrap_throw();
+                    }
+                    ViewSeqMutation::Changed(_) => {
+                        child_idx += 1;
+                    }
+                }
+                // mutation;
             }
             changed.remove(ChangeFlags::STRUCTURE);
         }
@@ -207,11 +249,14 @@ macro_rules! define_element {
                 let (el, attributes) = cx.build_element($ns, $tag_name);
 
                 let mut child_elements = vec![];
+                let mut mutations = vec![];
                 let (id, children_states) =
-                    cx.with_new_id(|cx| self.0.build(cx, &mut child_elements));
+                    cx.with_new_id(|cx| self.0.build(cx, &mut child_elements, &mut mutations));
                 for child in &child_elements {
                     el.append_child(child.0.as_node_ref()).unwrap_throw();
                 }
+                // web_sys::console::log_1(&format!("element build: {:?}", mutations).into());
+                mutations.clear(); // TODO do something with it, tree structure tracking?
 
                 // Set the id used internally to the `data-debugid` attribute.
                 // This allows the user to see if an element has been re-created or only altered.
@@ -225,6 +270,7 @@ macro_rules! define_element {
                     child_elements,
                     scratch: vec![],
                     attributes,
+                    mutations,
                 };
                 (id, state, el)
             }
@@ -241,21 +287,51 @@ macro_rules! define_element {
 
                 changed |= cx.apply_attribute_changes(element, &mut state.attributes);
 
+                let old_len = state.child_elements.len();
                 // update children
+                state.mutations.clear();
                 let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
                 changed |= cx.with_id(*id, |cx| {
                     self.0
-                        .rebuild(cx, &prev.0, &mut state.children_states, &mut splice)
+                        .rebuild(cx, &prev.0, &mut state.children_states, &mut splice, &mut state.mutations)
                 });
+                // web_sys::console::log_1(&format!("element rebuild: {:?}", state.mutations).into());
+                // mutations.clear(); // TODO do something with it, tree structure tracking?
                 if changed.contains(ChangeFlags::STRUCTURE) {
-                    // This is crude and will result in more DOM traffic than needed.
-                    // The right thing to do is diff the new state of the children id
-                    // vector against the old, and derive DOM mutations from that.
-                    while let Some(child) = element.first_child() {
-                        element.remove_child(&child).unwrap_throw();
+                    let mut child_idx = 0;
+                    let node_list = element.child_nodes();
+                    if let Some(ViewSeqMutation::Delete(count)) = state.mutations.get(0) {
+                        if *count == old_len {
+                            // web_sys::console::log_1(&"delete everything".into());
+                            element.set_text_content(None);
+                            state.mutations.clear();
+                        }
                     }
-                    for child in &state.child_elements {
-                        element.append_child(child.0.as_node_ref()).unwrap_throw();
+                    for mutation in &state.mutations {
+                        // web_sys::console::log_1(&format!("mutation idx: {}, mutation: {:?}", child_idx, mutation).into());
+                        match mutation {
+                            ViewSeqMutation::Delete(count) => {
+                                for _ in 0..*count {
+                                    let child = node_list.get(child_idx).unwrap_throw();
+                                    element.remove_child(&child).unwrap_throw();
+                                }
+                            }
+                            ViewSeqMutation::Skip(count) => child_idx += *count as u32,
+                            ViewSeqMutation::Insert(_) => {
+                                let child = node_list.get(child_idx);
+                                // web_sys::console::log_1(&format!("insert idx: {}, len: {}", child_idx, state.child_elements.len()).into());
+                                element
+                                    .insert_before(
+                                        state.child_elements[child_idx as usize].0.as_node_ref(),
+                                        child.as_deref().and_then(|c| c.dyn_ref::<web_sys::Node>()),
+                                    )
+                                    .unwrap_throw();
+                                child_idx += 1;
+                            }
+                            ViewSeqMutation::Changed(_) => {
+                                child_idx += 1;
+                            }
+                        }
                     }
                     changed.remove(ChangeFlags::STRUCTURE);
                 }
@@ -297,7 +373,7 @@ macro_rules! define_elements {
         use super::ElementState;
 
         use crate::{
-            interfaces::sealed::Sealed, view::DomNode,
+            interfaces::sealed::Sealed, view::{DomNode, ViewSeqMutation},
             ChangeFlags, Cx, View, ViewMarker, ViewSequence,
         };
 

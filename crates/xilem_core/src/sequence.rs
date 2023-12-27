@@ -8,8 +8,8 @@ macro_rules! impl_view_tuple {
         impl<T, A, $( $t: $viewseq<T, A> ),* > $viewseq<T, A> for ( $( $t, )* ) {
             type State = ( $( $t::State, )*);
 
-            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>) -> Self::State {
-                let b = ( $( self.$i.build(cx, elements), )* );
+            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>, mutations: &mut Vec<ViewSeqMutation>) -> Self::State {
+                let b = ( $( self.$i.build(cx, elements, mutations), )* );
                 let state = ( $( b.$i, )*);
                 state
             }
@@ -20,10 +20,11 @@ macro_rules! impl_view_tuple {
                 prev: &Self,
                 state: &mut Self::State,
                 els: &mut $crate::VecSplice<$pod>,
+                mutations: &mut Vec<ViewSeqMutation>,
             ) -> ChangeFlags {
                 let mut changed = <$changeflags>::default();
                 $(
-                    let el_changed = self.$i.rebuild(cx, &prev.$i, &mut state.$i, els);
+                    let el_changed = self.$i.rebuild(cx, &prev.$i, &mut state.$i, els, mutations);
                     changed |= el_changed;
                 )*
                 changed
@@ -57,6 +58,29 @@ macro_rules! impl_view_tuple {
 #[macro_export]
 macro_rules! generate_viewsequence_trait {
     ($viewseq:ident, $view:ident, $viewmarker: ident, $bound:ident, $cx:ty, $changeflags:ty, $pod:ty; $( $ss:tt )* ) => {
+
+        #[derive(Debug)]
+        pub enum ViewSeqMutation {
+            Delete(usize),
+            Skip(usize),
+            Insert($crate::Id),
+            Changed($changeflags), // TODO separate variant for id/element change
+        }
+
+        fn delete_mutation(mutations: &mut Vec<ViewSeqMutation>, count: usize) {
+            if let Some(ViewSeqMutation::Delete(n)) = mutations.last_mut() {
+                *n += count;
+            } else {
+                mutations.push(ViewSeqMutation::Delete(count));
+            }
+        }
+        fn skip_mutation(mutations: &mut Vec<ViewSeqMutation>, count: usize) {
+            if let Some(ViewSeqMutation::Skip(n)) = mutations.last_mut() {
+                *n += count;
+            } else {
+                mutations.push(ViewSeqMutation::Skip(count));
+            }
+        }
         /// This trait represents a (possibly empty) sequence of views.
         ///
         /// It is up to the parent view how to lay out and display them.
@@ -65,7 +89,7 @@ macro_rules! generate_viewsequence_trait {
             type State $( $ss )*;
 
             /// Build the associated widgets and initialize all states.
-            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>) -> Self::State;
+            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>, mutations: &mut Vec<ViewSeqMutation>) -> Self::State;
 
             /// Update the associated widget.
             ///
@@ -75,7 +99,8 @@ macro_rules! generate_viewsequence_trait {
                 cx: &mut $cx,
                 prev: &Self,
                 state: &mut Self::State,
-                element: &mut $crate::VecSplice<$pod>,
+                elements: &mut $crate::VecSplice<$pod>,
+                mutations: &mut Vec<ViewSeqMutation>,
             ) -> $changeflags;
 
             /// Propagate a message.
@@ -100,9 +125,10 @@ macro_rules! generate_viewsequence_trait {
         {
             type State = (<V as $view<T, A>>::State, $crate::Id);
 
-            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>) -> Self::State {
+            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>, mutations: &mut Vec<ViewSeqMutation>) -> Self::State {
                 let (id, state, element) = <V as $view<T, A>>::build(self, cx);
                 elements.push(<$pod>::new(element));
+                mutations.push(ViewSeqMutation::Insert(id));
                 (state, id)
             }
 
@@ -112,6 +138,7 @@ macro_rules! generate_viewsequence_trait {
                 prev: &Self,
                 state: &mut Self::State,
                 element: &mut $crate::VecSplice<$pod>,
+                mutations: &mut Vec<ViewSeqMutation>,
             ) -> $changeflags {
                 let el = element.mutate();
                 let downcast = el.downcast_mut().unwrap();
@@ -123,6 +150,12 @@ macro_rules! generate_viewsequence_trait {
                     &mut state.0,
                     downcast,
                 );
+
+                if flags != <$changeflags>::empty() {
+                    mutations.push(ViewSeqMutation::Changed(flags));
+                } else {
+                    skip_mutation(mutations, 1);
+                }
 
                 el.mark(flags)
             }
@@ -156,11 +189,11 @@ macro_rules! generate_viewsequence_trait {
         impl<T, A, VT: $viewseq<T, A>> $viewseq<T, A> for Option<VT> {
             type State = Option<VT::State>;
 
-            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>) -> Self::State {
+            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>, mutations: &mut Vec<ViewSeqMutation>) -> Self::State {
                 match self {
                     None => None,
                     Some(vt) => {
-                        let state = vt.build(cx, elements);
+                        let state = vt.build(cx, elements, mutations);
                         Some(state)
                     }
                 }
@@ -172,18 +205,20 @@ macro_rules! generate_viewsequence_trait {
                 prev: &Self,
                 state: &mut Self::State,
                 element: &mut $crate::VecSplice<$pod>,
+                mutations: &mut Vec<ViewSeqMutation>,
             ) -> $changeflags {
                 match (self, &mut *state, prev) {
-                    (Some(this), Some(state), Some(prev)) => this.rebuild(cx, prev, state, element),
+                    (Some(this), Some(state), Some(prev)) => this.rebuild(cx, prev, state, element, mutations),
                     (None, Some(seq_state), Some(prev)) => {
                         let count = prev.count(&seq_state);
                         element.delete(count);
+                        delete_mutation(mutations, count);
                         *state = None;
 
                         <$changeflags>::tree_structure()
                     }
                     (Some(this), None, None) => {
-                        let seq_state = element.as_vec(|vec| this.build(cx, vec));
+                        let seq_state = element.as_vec(|vec| this.build(cx, vec, mutations));
                         *state = Some(seq_state);
 
                         <$changeflags>::tree_structure()
@@ -219,8 +254,8 @@ macro_rules! generate_viewsequence_trait {
         impl<T, A, VT: $viewseq<T, A>> $viewseq<T, A> for Vec<VT> {
             type State = Vec<VT::State>;
 
-            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>) -> Self::State {
-                self.iter().map(|child| child.build(cx, elements)).collect()
+            fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>, mutations: &mut Vec<ViewSeqMutation>) -> Self::State {
+                self.iter().map(|child| child.build(cx, elements, mutations)).collect()
             }
 
             fn rebuild(
@@ -229,10 +264,11 @@ macro_rules! generate_viewsequence_trait {
                 prev: &Self,
                 state: &mut Self::State,
                 elements: &mut $crate::VecSplice<$pod>,
+                mutations: &mut Vec<ViewSeqMutation>,
             ) -> $changeflags {
                 let mut changed = <$changeflags>::default();
                 for ((child, child_prev), child_state) in self.iter().zip(prev).zip(state.iter_mut()) {
-                    let el_changed = child.rebuild(cx, child_prev, child_state, elements);
+                    let el_changed = child.rebuild(cx, child_prev, child_state, elements, mutations);
                     changed |= el_changed;
                 }
                 let n = self.len();
@@ -243,11 +279,12 @@ macro_rules! generate_viewsequence_trait {
                         .map(|(i, state)| prev[n + i].count(&state))
                         .sum();
                     elements.delete(n_delete);
+                    delete_mutation(mutations, n_delete);
                     changed |= <$changeflags>::tree_structure();
                 } else if n > prev.len() {
                     let mut child_elements = vec![];
                     for i in prev.len()..n {
-                        state.push(self[i].build(cx, &mut child_elements));
+                        state.push(self[i].build(cx, &mut child_elements, mutations));
                     }
                     // Discussion question: should VecSplice get an extend method?
                     for element in child_elements {

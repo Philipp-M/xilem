@@ -1,7 +1,7 @@
 use crate::{
     interfaces::{sealed::Sealed, Element},
     view::DomNode,
-    ChangeFlags, Cx, OptionalAction, View, ViewMarker,
+    ChangeFlags, Cx, Hydrate, OptionalAction, View, ViewMarker,
 };
 use std::{any::Any, borrow::Cow, marker::PhantomData};
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
@@ -58,6 +58,32 @@ where
     pub fn passive(mut self, value: bool) -> Self {
         self.options.passive = value;
         self
+    }
+}
+
+impl<T, A, C, E, Ev, OA> Hydrate<T, A> for OnEvent<E, T, A, Ev, C>
+where
+    OA: OptionalAction<A>,
+    C: Fn(&mut T, Ev) -> OA,
+    Ev: JsCast + 'static,
+    E: Hydrate<T, A> + Element<T, A>,
+{
+    // TODO basically identical as View::build, but instead using hydrate, so maybe macro?
+    fn hydrate(&self, cx: &mut Cx, element: web_sys::Node) -> (Id, Self::State, Self::Element) {
+        let (id, (element, state)) = cx.with_new_id(|cx| {
+            let (child_id, child_state, el) = self.element.hydrate(cx, element);
+            let listener =
+                create_event_listener::<Ev>(el.as_node_ref(), self.event.clone(), self.options, cx);
+            (
+                el,
+                OnEventState {
+                    child_state,
+                    child_id,
+                    listener,
+                },
+            )
+        });
+        (id, state, element)
     }
 }
 
@@ -297,6 +323,23 @@ macro_rules! event_definitions {
                     }
                     _ => MessageResult::Stale(message),
                 }
+            }
+        }
+
+        impl<T, A, C, E, OA> Hydrate<T, A> for $ty_name<E, T, A, C>
+        where
+            OA: OptionalAction<A>,
+            C: Fn(&mut T, web_sys::$web_sys_ty) -> OA,
+            E: Hydrate<T, A> + Element<T, A>,
+        {
+            // TODO basically identical as View::build, but instead using hydrate, so maybe macro?
+            fn hydrate(&self, cx: &mut Cx, element: web_sys::Node) -> (Id, Self::State, Self::Element) {
+                let (id, (element, state)) = cx.with_new_id(|cx| {
+                    let (child_id, child_state, el) = self.target.hydrate(cx, element);
+                    let listener = create_event_listener::<web_sys::$web_sys_ty>(el.as_node_ref(), $event_name, self.options, cx);
+                    (el, OnEventState { child_state, child_id, listener })
+                });
+                (id, state, element)
             }
         }
         )*

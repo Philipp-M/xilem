@@ -91,6 +91,11 @@ impl Cx {
     pub(crate) fn set_runner(&mut self, runner: impl AppRunner + 'static) {
         self.app_ref = Some(Box::new(runner));
     }
+
+    pub fn skip_child(&mut self) {}
+    pub fn add_child(&mut self, _id: Id) {}
+    pub fn delete_children(&mut self, _count: usize) {}
+    pub fn child_changed(&mut self, _id_before: Id, _new_id: Id, _changeflags: ChangeFlags) {}
 }
 
 impl Default for Cx {

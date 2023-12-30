@@ -103,6 +103,7 @@ macro_rules! generate_viewsequence_trait {
             fn build(&self, cx: &mut $cx, elements: &mut Vec<$pod>) -> Self::State {
                 let (id, state, element) = <V as $view<T, A>>::build(self, cx);
                 elements.push(<$pod>::new(element));
+                cx.add_child(id);
                 (state, id)
             }
 
@@ -115,6 +116,7 @@ macro_rules! generate_viewsequence_trait {
             ) -> $changeflags {
                 let el = element.mutate();
                 let downcast = el.downcast_mut().unwrap();
+                let id_before = state.1;
                 let flags = <V as $view<T, A>>::rebuild(
                     self,
                     cx,
@@ -123,6 +125,12 @@ macro_rules! generate_viewsequence_trait {
                     &mut state.0,
                     downcast,
                 );
+
+                if flags != <$changeflags>::empty() {
+                    cx.child_changed(id_before, state.1, flags);
+                } else {
+                    cx.skip_child();
+                }
 
                 el.mark(flags)
             }
@@ -178,6 +186,7 @@ macro_rules! generate_viewsequence_trait {
                     (None, Some(seq_state), Some(prev)) => {
                         let count = prev.count(&seq_state);
                         element.delete(count);
+                        cx.delete_children(count);
                         *state = None;
 
                         <$changeflags>::tree_structure()
@@ -243,6 +252,7 @@ macro_rules! generate_viewsequence_trait {
                         .map(|(i, state)| prev[n + i].count(&state))
                         .sum();
                     elements.delete(n_delete);
+                    cx.delete_children(n_delete);
                     changed |= <$changeflags>::tree_structure();
                 } else if n > prev.len() {
                     let mut child_elements = vec![];

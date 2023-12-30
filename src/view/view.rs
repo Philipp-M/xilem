@@ -110,4 +110,9 @@ impl Cx {
     pub fn add_pending_async(&mut self, id: Id) {
         self.pending_async.insert(id);
     }
+
+    pub fn skip_child(&mut self) {}
+    pub fn add_child(&mut self, _id: Id) {}
+    pub fn delete_children(&mut self, _count: usize) {}
+    pub fn child_changed(&mut self, _id_before: Id, _new_id: Id, _changeflags: ChangeFlags) {}
 }

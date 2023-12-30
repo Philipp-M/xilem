@@ -1,11 +1,11 @@
 use std::marker::PhantomData;
 
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
-use xilem_core::{Id, MessageResult, VecSplice};
+use xilem_core::{Id, MessageResult};
 
 use crate::{
-    interfaces::sealed::Sealed, vecmap::VecMap, view::DomNode, AttributeValue, ChangeFlags, Cx,
-    Pod, View, ViewMarker, ViewSequence, HTML_NS,
+    interfaces::sealed::Sealed, vecmap::VecMap, AttributeValue, ChangeFlags, Cx, Pod, View,
+    ViewMarker, ViewSequence, HTML_NS,
 };
 
 use super::interfaces::Element;
@@ -67,11 +67,7 @@ where
 
         let mut child_elements = vec![];
         let (id, children_states) =
-            cx.with_new_id(|cx| self.children.build(cx, &mut child_elements));
-
-        for child in &child_elements {
-            el.append_child(child.0.as_node_ref()).unwrap_throw();
-        }
+            cx.build_element_children(&el, &self.children, &mut child_elements);
 
         // Set the id used internally to the `data-debugid` attribute.
         // This allows the user to see if an element has been re-created or only altered.
@@ -118,27 +114,17 @@ where
             changed |= ChangeFlags::STRUCTURE;
         }
 
-        changed |= cx.rebuild_element(element, &mut state.attributes);
-
-        // update children
-        let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
-        changed |= cx.with_id(*id, |cx| {
-            self.children
-                .rebuild(cx, &prev.children, &mut state.children_states, &mut splice)
-        });
-        if changed.contains(ChangeFlags::STRUCTURE) {
-            // This is crude and will result in more DOM traffic than needed.
-            // The right thing to do is diff the new state of the children id
-            // vector against the old, and derive DOM mutations from that.
-            while let Some(child) = element.first_child() {
-                element.remove_child(&child).unwrap_throw();
-            }
-            for child in &state.child_elements {
-                element.append_child(child.0.as_node_ref()).unwrap_throw();
-            }
-            changed.remove(ChangeFlags::STRUCTURE);
-        }
         changed
+            | cx.rebuild_element(element, &mut state.attributes)
+            | cx.rebuild_element_children(
+                element,
+                *id,
+                &self.children,
+                &prev.children,
+                &mut state.children_states,
+                &mut state.child_elements,
+                &mut state.scratch,
+            )
     }
 
     fn message(
@@ -207,11 +193,7 @@ macro_rules! define_element {
                 let (el, attributes) = cx.build_element($ns, $tag_name);
 
                 let mut child_elements = vec![];
-                let (id, children_states) =
-                    cx.with_new_id(|cx| self.0.build(cx, &mut child_elements));
-                for child in &child_elements {
-                    el.append_child(child.0.as_node_ref()).unwrap_throw();
-                }
+                let (id, children_states) = cx.build_element_children(&el, &self.0, &mut child_elements);
 
                 // Set the id used internally to the `data-debugid` attribute.
                 // This allows the user to see if an element has been re-created or only altered.
@@ -237,29 +219,16 @@ macro_rules! define_element {
                 state: &mut Self::State,
                 element: &mut Self::Element,
             ) -> ChangeFlags {
-                let mut changed = ChangeFlags::empty();
-
-                changed |= cx.apply_attribute_changes(element, &mut state.attributes);
-
-                // update children
-                let mut splice = VecSplice::new(&mut state.child_elements, &mut state.scratch);
-                changed |= cx.with_id(*id, |cx| {
-                    self.0
-                        .rebuild(cx, &prev.0, &mut state.children_states, &mut splice)
-                });
-                if changed.contains(ChangeFlags::STRUCTURE) {
-                    // This is crude and will result in more DOM traffic than needed.
-                    // The right thing to do is diff the new state of the children id
-                    // vector against the old, and derive DOM mutations from that.
-                    while let Some(child) = element.first_child() {
-                        element.remove_child(&child).unwrap_throw();
-                    }
-                    for child in &state.child_elements {
-                        element.append_child(child.0.as_node_ref()).unwrap_throw();
-                    }
-                    changed.remove(ChangeFlags::STRUCTURE);
-                }
-                changed
+                cx.rebuild_element(element, &mut state.attributes)
+                    | cx.rebuild_element_children(
+                        element,
+                        *id,
+                        &self.0,
+                        &prev.0,
+                        &mut state.children_states,
+                        &mut state.child_elements,
+                        &mut state.scratch,
+                    )
             }
 
             fn message(
@@ -293,12 +262,11 @@ macro_rules! define_elements {
     ($ns:ident, $($element_def:tt,)*) => {
         use std::marker::PhantomData;
         use wasm_bindgen::{JsCast, UnwrapThrowExt};
-        use xilem_core::{Id, MessageResult, VecSplice};
+        use xilem_core::{Id, MessageResult};
         use super::ElementState;
 
         use crate::{
-            interfaces::sealed::Sealed, view::DomNode,
-            ChangeFlags, Cx, View, ViewMarker, ViewSequence,
+            interfaces::sealed::Sealed, ChangeFlags, Cx, View, ViewMarker, ViewSequence,
         };
 
         $(define_element!(crate::$ns, $element_def);)*

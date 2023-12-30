@@ -4,13 +4,13 @@ use bitflags::bitflags;
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use web_sys::Document;
 
-use xilem_core::{Id, IdPath};
+use xilem_core::{Id, IdPath, VecSplice};
 
 use crate::{
     app::AppRunner,
     diff::{diff_kv_iterables, Diff},
     vecmap::VecMap,
-    AttributeValue, Message,
+    AttributeValue, Message, Pod, ViewSequence,
 };
 
 type CowStr = std::borrow::Cow<'static, str>;
@@ -40,12 +40,26 @@ fn remove_attribute(element: &web_sys::Element, name: &str) {
     }
 }
 
+#[derive(Debug)]
+enum TreeMutation {
+    // EnterChildrenMarker is necessary for an optimization to accumulate multiple tree mutations in one element (e.g. TreeMutation::Skip(10))
+    // Otherwise parent and child skips/deletions would be merged
+    // This could contain extra information such as the parent id
+    EnterChildrenMarker,
+    Delete(usize),
+    Skip(usize),
+    Insert(Id),
+}
+
 // Note: xilem has derive Clone here. Not sure.
 pub struct Cx {
     id_path: IdPath,
     document: Document,
     // TODO There's likely a cleaner more robust way to propagate the attributes to an element
     pub(crate) current_element_attributes: VecMap<CowStr, AttributeValue>,
+    // Tree mutations are accumulated while traversing view sequences via the following stack
+    // The stack is flushed (partially, for each element scope) in Cx::build_element_children and Cx::rebuild_element_children
+    mutations: Vec<TreeMutation>,
     app_ref: Option<Box<dyn AppRunner>>,
 }
 
@@ -69,6 +83,7 @@ impl Cx {
             document: crate::document(),
             app_ref: None,
             current_element_attributes: Default::default(),
+            mutations: Vec::new(),
         }
     }
 
@@ -123,12 +138,95 @@ impl Cx {
         (el, attributes)
     }
 
+    pub fn build_element_children<T, A, Children: ViewSequence<T, A>>(
+        &mut self,
+        el: &web_sys::Element,
+        children: &Children,
+        child_elements: &mut Vec<Pod>,
+    ) -> (Id, Children::State) {
+        let mutation_start_idx = self.mutations.len();
+        self.mutations.push(TreeMutation::EnterChildrenMarker);
+        let id = Id::next();
+        self.push(id);
+        let state = children.build(self, child_elements);
+        self.pop();
+        // TODO do something with the extra information probably tree-structure tracking (should only be inserts)?
+        self.mutations.truncate(mutation_start_idx);
+
+        for child in child_elements {
+            el.append_child(child.0.as_node_ref()).unwrap_throw();
+        }
+
+        (id, state)
+    }
+
     pub(crate) fn rebuild_element(
         &mut self,
         element: &web_sys::Element,
         attributes: &mut VecMap<CowStr, AttributeValue>,
     ) -> ChangeFlags {
         self.apply_attribute_changes(element, attributes)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn rebuild_element_children<T, A, Children: ViewSequence<T, A>>(
+        &mut self,
+        el: &web_sys::Element,
+        id: Id,
+        children: &Children,
+        prev_children: &Children,
+        children_states: &mut Children::State,
+        child_elements: &mut Vec<Pod>,
+        scratch: &mut Vec<Pod>,
+    ) -> ChangeFlags {
+        let mutation_start_idx = self.mutations.len();
+        self.mutations.push(TreeMutation::EnterChildrenMarker);
+        self.push(id);
+        let mut splice = VecSplice::new(child_elements, scratch);
+        let mut changeflags = children.rebuild(self, prev_children, children_states, &mut splice);
+        self.pop();
+
+        if changeflags.contains(ChangeFlags::STRUCTURE) {
+            changeflags.remove(ChangeFlags::STRUCTURE);
+            self.apply_tree_mutations(el, child_elements, mutation_start_idx);
+        }
+        self.mutations.truncate(mutation_start_idx);
+        changeflags
+    }
+
+    fn apply_tree_mutations(
+        &mut self,
+        el: &web_sys::Element,
+        child_elements: &[Pod],
+        mutation_start_idx: usize,
+    ) {
+        let mut child_idx = 0;
+        let node_list = el.child_nodes();
+        let old_len = node_list.length() as usize;
+        for mutation in &self.mutations[mutation_start_idx..] {
+            match mutation {
+                TreeMutation::Delete(count) => {
+                    // Optimization in case all elements are deleted at once
+                    if *count == old_len {
+                        el.set_text_content(None);
+                    } else {
+                        for _ in 0..*count {
+                            let child = node_list.get(child_idx).unwrap_throw();
+                            el.remove_child(&child).unwrap_throw();
+                        }
+                    }
+                }
+                TreeMutation::Skip(count) => child_idx += *count as u32,
+                TreeMutation::Insert(_) => {
+                    let child = node_list.get(child_idx);
+                    let child = child.as_deref().and_then(JsCast::dyn_ref);
+                    el.insert_before(child_elements[child_idx as usize].0.as_node_ref(), child)
+                        .unwrap_throw();
+                    child_idx += 1;
+                }
+                TreeMutation::EnterChildrenMarker => (),
+            }
+        }
     }
 
     // TODO Not sure how multiple attribute definitions with the same name should be handled (e.g. `e.attr("class", "a").attr("class", "b")`)
@@ -191,6 +289,36 @@ impl Cx {
     }
     pub(crate) fn set_runner(&mut self, runner: impl AppRunner + 'static) {
         self.app_ref = Some(Box::new(runner));
+    }
+
+    pub fn skip_child(&mut self) {
+        if let Some(TreeMutation::Skip(n)) = self.mutations.last_mut() {
+            *n += 1;
+        } else {
+            self.mutations.push(TreeMutation::Skip(1));
+        }
+    }
+
+    pub fn add_child(&mut self, id: Id) {
+        self.mutations.push(TreeMutation::Insert(id));
+    }
+
+    pub fn delete_children(&mut self, count: usize) {
+        if let Some(TreeMutation::Delete(n)) = self.mutations.last_mut() {
+            *n += count;
+        } else {
+            self.mutations.push(TreeMutation::Delete(count));
+        }
+    }
+
+    // TODO separate variant for id/element change?
+    pub fn child_changed(&mut self, id_before: Id, new_id: Id, _changeflags: ChangeFlags) {
+        if id_before != new_id {
+            self.delete_children(1);
+            self.add_child(new_id);
+        } else {
+            self.skip_child();
+        }
     }
 }
 

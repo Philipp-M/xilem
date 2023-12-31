@@ -4,8 +4,8 @@ use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult};
 
 use crate::{
-    interfaces::sealed::Sealed, vecmap::VecMap, AttributeValue, ChangeFlags, Cx, Pod, View,
-    ViewMarker, ViewSequence, HTML_NS,
+    interfaces::sealed::Sealed, vecmap::VecMap, AttributeValue, BoxedViewSequence, ChangeFlags, Cx,
+    Pod, View, ViewMarker, ViewSequence, HTML_NS,
 };
 
 use super::interfaces::Element;
@@ -24,9 +24,9 @@ pub struct ElementState<ViewSeqState> {
 
 // TODO something like the `after_update` of the former `Element` view (likely as a wrapper view instead)
 
-pub struct CustomElement<T, A = (), Children = ()> {
+pub struct CustomElement<T, A = ()> {
     name: CowStr,
-    children: Children,
+    children: BoxedViewSequence<T, A>,
     #[allow(clippy::type_complexity)]
     phantom: PhantomData<fn() -> (T, A)>,
 }
@@ -35,28 +35,29 @@ pub struct CustomElement<T, A = (), Children = ()> {
 pub fn custom_element<T, A, Children: ViewSequence<T, A>>(
     name: impl Into<CowStr>,
     children: Children,
-) -> CustomElement<T, A, Children> {
+) -> CustomElement<T, A>
+where
+    Children: 'static,
+    Children::State: 'static,
+{
     CustomElement {
         name: name.into(),
-        children,
+        children: Box::new(children),
         phantom: PhantomData,
     }
 }
 
-impl<T, A, Children> CustomElement<T, A, Children> {
+impl<T, A> CustomElement<T, A> {
     fn node_name(&self) -> &str {
         &self.name
     }
 }
 
-impl<T, A, Children> ViewMarker for CustomElement<T, A, Children> {}
-impl<T, A, Children> Sealed for CustomElement<T, A, Children> {}
+impl<T, A> ViewMarker for CustomElement<T, A> {}
+impl<T, A> Sealed for CustomElement<T, A> {}
 
-impl<T, A, Children> View<T, A> for CustomElement<T, A, Children>
-where
-    Children: ViewSequence<T, A>,
-{
-    type State = ElementState<Children::State>;
+impl<T, A> View<T, A> for CustomElement<T, A> {
+    type State = ElementState<Box<dyn std::any::Any>>;
 
     // This is mostly intended for Autonomous custom elements,
     // TODO: Custom builtin components need some special handling (`document.createElement("p", { is: "custom-component" })`)
@@ -139,18 +140,12 @@ where
     }
 }
 
-impl<T, A, Children: ViewSequence<T, A>> Element<T, A> for CustomElement<T, A, Children> {}
-impl<T, A, Children: ViewSequence<T, A>> crate::interfaces::HtmlElement<T, A>
-    for CustomElement<T, A, Children>
-{
-}
+impl<T, A> Element<T, A> for CustomElement<T, A> {}
+impl<T, A> crate::interfaces::HtmlElement<T, A> for CustomElement<T, A> {}
 
 macro_rules! generate_dom_interface_impl {
-    ($dom_interface:ident, ($ty_name:ident, $t:ident, $a:ident, $vs:ident)) => {
-        impl<$t, $a, $vs> $crate::interfaces::$dom_interface<$t, $a> for $ty_name<$t, $a, $vs> where
-            $vs: $crate::view::ViewSequence<$t, $a>
-        {
-        }
+    ($dom_interface:ident, ($ty_name:ident, $t:ident, $a:ident)) => {
+        impl<$t, $a> $crate::interfaces::$dom_interface<$t, $a> for $ty_name<$t, $a> {}
     };
 }
 
@@ -180,13 +175,13 @@ macro_rules! define_element {
         ));
     };
     ($ns:expr, ($ty_name:ident, $name:ident, $dom_interface:ident, $tag_name:expr, $t:ident, $a: ident, $vs: ident)) => {
-        pub struct $ty_name<$t, $a = (), $vs = ()>($vs, PhantomData<fn() -> ($t, $a)>);
+        pub struct $ty_name<$t, $a = ()>(BoxedViewSequence<$t, $a>, PhantomData<fn() -> ($t, $a)>);
 
-        impl<$t, $a, $vs> ViewMarker for $ty_name<$t, $a, $vs> {}
-        impl<$t, $a, $vs> Sealed for $ty_name<$t, $a, $vs> {}
+        impl<$t, $a> ViewMarker for $ty_name<$t, $a> {}
+        impl<$t, $a> Sealed for $ty_name<$t, $a> {}
 
-        impl<$t, $a, $vs: ViewSequence<$t, $a>> View<$t, $a> for $ty_name<$t, $a, $vs> {
-            type State = ElementState<$vs::State>;
+        impl<$t, $a> View<$t, $a> for $ty_name<$t, $a> {
+            type State = ElementState<Box<dyn std::any::Any>>;
             type Element = web_sys::$dom_interface;
 
             fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
@@ -246,14 +241,18 @@ macro_rules! define_element {
         /// Builder function for a
         #[doc = concat!("`", $tag_name, "`")]
         /// element view.
-        pub fn $name<$t, $a, $vs: ViewSequence<$t, $a>>(children: $vs) -> $ty_name<$t, $a, $vs> {
-            $ty_name(children, PhantomData)
+        pub fn $name<$t, $a, $vs: ViewSequence<$t, $a>>(children: $vs) -> $ty_name<$t, $a>
+        where
+            $vs: 'static,
+            $vs::State: 'static,
+        {
+            $ty_name(Box::new(children), PhantomData)
         }
 
-        generate_dom_interface_impl!($dom_interface, ($ty_name, $t, $a, $vs));
+        generate_dom_interface_impl!($dom_interface, ($ty_name, $t, $a));
 
         paste::paste! {
-            $crate::interfaces::[<for_all_ $dom_interface:snake _ancestors>]!(generate_dom_interface_impl, ($ty_name, $t, $a, $vs));
+            $crate::interfaces::[<for_all_ $dom_interface:snake _ancestors>]!(generate_dom_interface_impl, ($ty_name, $t, $a));
         }
     };
 }
@@ -266,7 +265,7 @@ macro_rules! define_elements {
         use super::ElementState;
 
         use crate::{
-            interfaces::sealed::Sealed, ChangeFlags, Cx, View, ViewMarker, ViewSequence,
+            interfaces::sealed::Sealed, ChangeFlags, Cx, View, ViewMarker, ViewSequence, BoxedViewSequence
         };
 
         $(define_element!(crate::$ns, $element_def);)*

@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::{Any, TypeId}, rc::Rc};
 
 use bitflags::bitflags;
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
@@ -55,6 +55,7 @@ enum TreeMutation {
 pub struct Cx {
     id_path: IdPath,
     document: Document,
+    pub(crate) templates: VecMap<TypeId, (web_sys::Node, Rc<dyn Any>)>,
     // TODO There's likely a cleaner more robust way to propagate the attributes to an element
     pub(crate) current_element_attributes: VecMap<CowStr, AttributeValue>,
     // Tree mutations are accumulated while traversing view sequences via the following stack
@@ -84,6 +85,7 @@ impl Cx {
             app_ref: None,
             current_element_attributes: Default::default(),
             mutations: Vec::new(),
+            templates: VecMap::default(),
         }
     }
 
@@ -134,7 +136,7 @@ impl Cx {
             .document
             .create_element_ns(Some(ns), name)
             .expect("could not create element");
-        let attributes = self.apply_attributes(&el);
+        let attributes = self.apply_attributes(&el, false);
         (el, attributes)
     }
 
@@ -158,6 +160,13 @@ impl Cx {
         }
 
         (id, state)
+    }
+
+    pub(crate) fn hydrate_element(
+        &mut self,
+        element: &web_sys::Element,
+    ) -> VecMap<CowStr, AttributeValue> {
+        self.apply_attributes(element, true)
     }
 
     pub(crate) fn rebuild_element(
@@ -245,14 +254,17 @@ impl Cx {
         }
     }
 
-    pub(crate) fn apply_attributes(
+    fn apply_attributes(
         &mut self,
         element: &web_sys::Element,
+        hydrate: bool,
     ) -> VecMap<CowStr, AttributeValue> {
         let mut attributes = VecMap::default();
         std::mem::swap(&mut attributes, &mut self.current_element_attributes);
-        for (name, value) in attributes.iter() {
-            set_attribute(element, name, &value.serialize());
+        if !hydrate {
+            for (name, value) in attributes.iter() {
+                set_attribute(element, name, &value.serialize());
+            }
         }
         attributes
     }

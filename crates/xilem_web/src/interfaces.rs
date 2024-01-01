@@ -1,7 +1,6 @@
 use crate::{Pointer, PointerMsg, View, ViewMarker};
 use std::borrow::Cow;
 
-use gloo::events::EventListenerOptions;
 use wasm_bindgen::JsCast;
 
 use crate::{
@@ -51,7 +50,7 @@ where
         self,
         event: impl Into<Cow<'static, str>>,
         handler: EH,
-        options: EventListenerOptions,
+        options: web_sys::AddEventListenerOptions,
     ) -> OnEvent<Self, T, A, Ev, EH>
     where
         Ev: JsCast + 'static,

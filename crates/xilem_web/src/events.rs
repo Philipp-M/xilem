@@ -4,10 +4,8 @@ use crate::{
     ChangeFlags, Cx, Hydrate, OptionalAction, View, ViewMarker,
 };
 use std::{any::Any, borrow::Cow, marker::PhantomData};
-use wasm_bindgen::{JsCast, UnwrapThrowExt};
+use wasm_bindgen::{prelude::Closure, JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult};
-
-pub use gloo::events::EventListenerOptions;
 
 /// Wraps a [`View`] `V` and attaches an event listener.
 ///
@@ -15,7 +13,7 @@ pub use gloo::events::EventListenerOptions;
 pub struct OnEvent<E, T, A, Ev, C> {
     pub(crate) element: E,
     pub(crate) event: Cow<'static, str>,
-    pub(crate) options: EventListenerOptions,
+    pub(crate) options: web_sys::AddEventListenerOptions,
     pub(crate) handler: C,
     #[allow(clippy::type_complexity)]
     pub(crate) phantom_event_ty: PhantomData<fn() -> (T, A, Ev)>,
@@ -39,7 +37,7 @@ where
         element: E,
         event: impl Into<Cow<'static, str>>,
         handler: C,
-        options: EventListenerOptions,
+        options: web_sys::AddEventListenerOptions,
     ) -> Self {
         OnEvent {
             element,
@@ -56,7 +54,7 @@ where
     /// running (otherwise possible with `event.prevent_default()`), which
     /// restricts what they can be used for, but reduces overhead.
     pub fn passive(mut self, value: bool) -> Self {
-        self.options.passive = value;
+        self.options.passive(value);
         self
     }
 }
@@ -73,13 +71,13 @@ where
         let (id, (element, state)) = cx.with_new_id(|cx| {
             let (child_id, child_state, el) = self.element.hydrate(cx, element);
             let listener =
-                create_event_listener::<Ev>(el.as_node_ref(), self.event.clone(), self.options, cx);
+                create_event_listener::<Ev>(el.as_node_ref(), &self.event, &self.options, cx);
             (
                 el,
                 OnEventState {
                     child_state,
                     child_id,
-                    listener,
+                    callback: listener,
                 },
             )
         });
@@ -89,26 +87,46 @@ where
 
 fn create_event_listener<Ev: JsCast + 'static>(
     target: &web_sys::EventTarget,
-    event: impl Into<Cow<'static, str>>,
-    options: EventListenerOptions,
+    event: &str,
+    options: &web_sys::AddEventListenerOptions,
     cx: &Cx,
-) -> gloo::events::EventListener {
+) -> Closure<dyn FnMut(web_sys::Event)> {
     let thunk = cx.message_thunk();
-    gloo::events::EventListener::new_with_options(
-        target,
+    // todo!();
+    let closure = Closure::<dyn FnMut(_)>::new(move |event: web_sys::Event| {
+        let event = event.dyn_into::<Ev>().unwrap_throw();
+        thunk.push_message(event);
+    });
+    // web_sys::EventListener::as_ref()
+    let _ = target.add_event_listener_with_callback_and_add_event_listener_options(
         event,
+        closure.as_ref().unchecked_ref(),
         options,
-        move |event: &web_sys::Event| {
-            let event = (*event).clone().dyn_into::<Ev>().unwrap_throw();
-            thunk.push_message(event);
-        },
-    )
+    );
+
+    closure
+
+    // let closure =
+    //     Closure::wrap(Box::new(move |event: &web_sys::Event| {
+    //         let event = (*event).clone().dyn_into::<Ev>().unwrap_throw();
+    //         thunk.push_message(event);
+    //     } as Box<dyn FnMut()>);
+    // target.add_event_listener_with_callback_and_add_event_listener_options(event, );
+    // gloo::events::EventListener::new_with_options(
+    //     target,
+    //     event,
+    //     options,
+    //     move |event: &web_sys::Event| {
+    //         let event = (*event).clone().dyn_into::<Ev>().unwrap_throw();
+    //         thunk.push_message(event);
+    //     },
+    // )
 }
 
 /// State for the `OnEvent` view.
 pub struct OnEventState<S> {
     #[allow(unused)]
-    listener: gloo::events::EventListener,
+    callback: Closure<dyn FnMut(web_sys::Event)>,
     child_id: Id,
     child_state: S,
 }
@@ -130,16 +148,12 @@ where
     fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
         let (id, (element, state)) = cx.with_new_id(|cx| {
             let (child_id, child_state, element) = self.element.build(cx);
-            let listener = create_event_listener::<Ev>(
-                element.as_node_ref(),
-                self.event.clone(),
-                self.options,
-                cx,
-            );
+            let callback =
+                create_event_listener::<Ev>(element.as_node_ref(), &self.event, &self.options, cx);
             let state = OnEventState {
                 child_state,
                 child_id,
-                listener,
+                callback,
             };
             (element, state)
         });
@@ -168,10 +182,10 @@ where
             }
             // TODO check equality of prev and current element somehow
             if prev.event != self.event || changed.contains(ChangeFlags::STRUCTURE) {
-                state.listener = create_event_listener::<Ev>(
+                state.callback = create_event_listener::<Ev>(
                     element.as_node_ref(),
-                    self.event.clone(),
-                    self.options,
+                    &self.event,
+                    &self.options,
                     cx,
                 );
                 changed |= ChangeFlags::OTHER_CHANGE;
@@ -233,7 +247,7 @@ macro_rules! event_definitions {
         pub struct $ty_name<E, T, A, C> {
             target: E,
             callback: C,
-            options: EventListenerOptions,
+            options: web_sys::AddEventListenerOptions,
             phantom: PhantomData<fn() -> (T, A)>,
         }
 
@@ -253,7 +267,7 @@ macro_rules! event_definitions {
             /// running (otherwise possible with `event.prevent_default()`), which
             /// restricts what they can be used for, but reduces overhead.
             pub fn passive(mut self, value: bool) -> Self {
-                self.options.passive = value;
+                self.options.passive(value);
                 self
             }
         }
@@ -274,8 +288,8 @@ macro_rules! event_definitions {
             fn build(&self, cx: &mut Cx) -> (Id, Self::State, Self::Element) {
                 let (id, (element, state)) = cx.with_new_id(|cx| {
                     let (child_id, child_state, el) = self.target.build(cx);
-                    let listener = create_event_listener::<web_sys::$web_sys_ty>(el.as_node_ref(), $event_name, self.options, cx);
-                    (el, OnEventState { child_state, child_id, listener })
+                    let callback = create_event_listener::<web_sys::$web_sys_ty>(el.as_node_ref(), $event_name, &self.options, cx);
+                    (el, OnEventState { child_state, child_id, callback })
                 });
                 (id, state, element)
             }
@@ -296,7 +310,7 @@ macro_rules! event_definitions {
                     }
                     // TODO check equality of prev and current element somehow
                     if changed.contains(ChangeFlags::STRUCTURE) {
-                        state.listener = create_event_listener::<web_sys::$web_sys_ty>(element.as_node_ref(), $event_name, self.options, cx);
+                        state.callback = create_event_listener::<web_sys::$web_sys_ty>(element.as_node_ref(), $event_name, &self.options, cx);
                         changed |= ChangeFlags::OTHER_CHANGE;
                     }
                     changed
@@ -336,8 +350,8 @@ macro_rules! event_definitions {
             fn hydrate(&self, cx: &mut Cx, element: web_sys::Node) -> (Id, Self::State, Self::Element) {
                 let (id, (element, state)) = cx.with_new_id(|cx| {
                     let (child_id, child_state, el) = self.target.hydrate(cx, element);
-                    let listener = create_event_listener::<web_sys::$web_sys_ty>(el.as_node_ref(), $event_name, self.options, cx);
-                    (el, OnEventState { child_state, child_id, listener })
+                    let callback = create_event_listener::<web_sys::$web_sys_ty>(el.as_node_ref(), $event_name, &self.options, cx);
+                    (el, OnEventState { child_state, child_id, callback })
                 });
                 (id, state, element)
             }

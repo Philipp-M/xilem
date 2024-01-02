@@ -13,26 +13,31 @@ impl<'a, 'b, T> VecSplice<'a, 'b, T> {
         VecSplice { v, scratch, ix }
     }
 
+    fn move_rest_at_ix_to_scratch(&mut self, ix: usize) {
+        self.v.extend(self.scratch.splice(ix.., []).rev());
+    }
+
     pub fn skip(&mut self, n: usize) {
         if self.v.len() < self.ix + n {
-            let l = self.scratch.len();
-            self.v.extend(self.scratch.splice(l - n.., []));
-            self.v[self.ix..].reverse();
+            let l = self.scratch.len().saturating_sub(n);
+            self.move_rest_at_ix_to_scratch(l);
         }
         self.ix += n;
     }
 
     pub fn delete(&mut self, n: usize) {
-        if self.v.len() < self.ix + n {
-            self.scratch.truncate(self.scratch.len() - n);
-        } else {
-            if self.v.len() > self.ix + n {
-                let l = self.scratch.len();
-                self.scratch.extend(self.v.splice(self.ix + n.., []));
-                self.scratch[l..].reverse();
-            }
-            self.v.truncate(self.ix);
+        let len = self.v.len();
+        let del_end_ix = self.ix + n;
+        #[allow(clippy::comparison_chain)]
+        if len < del_end_ix {
+            let v_rest_len = len.saturating_sub(self.ix);
+            let d = n.saturating_sub(v_rest_len);
+            let scratch_start_ix = self.scratch.len().saturating_sub(d);
+            self.scratch.truncate(scratch_start_ix);
+        } else if len > del_end_ix {
+            self.scratch.extend(self.v.splice(del_end_ix.., []).rev());
         }
+        self.v.truncate(self.ix);
     }
 
     pub fn push(&mut self, value: T) {
@@ -67,9 +72,7 @@ impl<'a, 'b, T> VecSplice<'a, 'b, T> {
 
     fn clear_tail(&mut self) {
         if self.v.len() > self.ix {
-            let l = self.scratch.len();
-            self.scratch.extend(self.v.splice(self.ix.., []));
-            self.scratch[l..].reverse();
+            self.scratch.extend(self.v.splice(self.ix.., []).rev());
         }
     }
 }

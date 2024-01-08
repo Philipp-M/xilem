@@ -75,7 +75,7 @@ impl<'a, 'b, 'c> ChildrenSplice<'a, 'b, 'c> {
 }
 
 impl<'a, 'b, 'c> ElementsSplice for ChildrenSplice<'a, 'b, 'c> {
-    fn push(&mut self, element: Pod, _id: Id) {
+    fn push(&mut self, element: Pod) {
         self.parent
             .append_child(element.0.as_node_ref())
             .unwrap_throw();
@@ -111,7 +111,7 @@ impl<'a, 'b, 'c> ElementsSplice for ChildrenSplice<'a, 'b, 'c> {
         self.children.len()
     }
 
-    fn mark(&mut self, mut changeflags: ChangeFlags, _old_id: Id, _new_id: Id) -> ChangeFlags {
+    fn mark(&mut self, mut changeflags: ChangeFlags) -> ChangeFlags {
         if changeflags.contains(ChangeFlags::STRUCTURE) {
             let node_list = if let Some(node_list) = &self.node_list {
                 node_list

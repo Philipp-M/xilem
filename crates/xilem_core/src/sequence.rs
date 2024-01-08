@@ -59,12 +59,12 @@ macro_rules! generate_viewsequence_trait {
 
         pub trait $elements_splice {
             /// Push new element to the collection
-            fn push(&mut self, element: $pod, id: $crate::Id);
-            // TODO function pointer for object safety?
+            fn push(&mut self, element: $pod);
             /// Mutate the next existing element, and add it to this collection
             fn mutate(&mut self) -> &mut $pod;
+            // TODO this could also track view id changes (old_id, new_id)
             /// Mark any changes done by `mutate` on the current element
-            fn mark(&mut self, changeflags: $changeflags, old_id: $crate::Id, new_id: $crate::Id) -> $changeflags;
+            fn mark(&mut self, changeflags: $changeflags) -> $changeflags;
             /// Delete the next n existing elements
             fn delete(&mut self, n: usize);
             /// Current length of the elements collection
@@ -72,7 +72,7 @@ macro_rules! generate_viewsequence_trait {
         }
 
         impl<'a, 'b> $elements_splice for $crate::VecSplice<'a, 'b, $pod> {
-            fn push(&mut self, element: $pod, _id: $crate::Id) {
+            fn push(&mut self, element: $pod) {
                 self.push(element);
             }
 
@@ -81,7 +81,7 @@ macro_rules! generate_viewsequence_trait {
                 self.mutate()
             }
 
-            fn mark(&mut self, changeflags: $changeflags, _old_id: $crate::Id, _new_id: $crate::Id) -> $changeflags
+            fn mark(&mut self, changeflags: $changeflags) -> $changeflags
             {
                 self.peek_mut().map(|pod| pod.mark(changeflags)).unwrap_or_default()
             }
@@ -140,7 +140,7 @@ macro_rules! generate_viewsequence_trait {
 
             fn build(&self, cx: &mut $cx, elements: &mut dyn $elements_splice) -> Self::State {
                 let (id, state, element) = <V as $view<T, A>>::build(self, cx);
-                elements.push(<$pod>::new(element), id);
+                elements.push(<$pod>::new(element));
                 (state, id)
             }
 
@@ -153,7 +153,6 @@ macro_rules! generate_viewsequence_trait {
             ) -> $changeflags {
                 let el = elements.mutate();
                 let downcast = el.downcast_mut().unwrap();
-                let old_id = state.1;
                 let flags = <V as $view<T, A>>::rebuild(
                     self,
                     cx,
@@ -162,7 +161,7 @@ macro_rules! generate_viewsequence_trait {
                     &mut state.0,
                     downcast,
                 );
-                elements.mark(flags, old_id, state.1)
+                elements.mark(flags)
             }
 
             fn message(

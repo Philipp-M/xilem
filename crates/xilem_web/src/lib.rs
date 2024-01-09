@@ -14,11 +14,13 @@ mod context;
 mod diff;
 pub mod elements;
 pub mod events;
+mod hydrate;
 pub mod interfaces;
 mod one_of;
 mod optional_action;
 mod pointer;
 pub mod svg;
+mod template;
 mod vecmap;
 mod view;
 mod view_ext;
@@ -29,12 +31,14 @@ pub use app::App;
 pub use attribute::Attr;
 pub use attribute_value::{AttributeValue, IntoAttributeValue};
 pub use context::{ChangeFlags, Cx};
+pub use hydrate::{Hydrate, HydrateSequence};
 pub use one_of::{
     OneOf2, OneOf3, OneOf4, OneOf5, OneOf6, OneOf7, OneOf8, OneSeqOf2, OneSeqOf3, OneSeqOf4,
     OneSeqOf5, OneSeqOf6, OneSeqOf7, OneSeqOf8,
 };
 pub use optional_action::{Action, OptionalAction};
 pub use pointer::{Pointer, PointerDetails, PointerMsg};
+pub use template::{t, Templated};
 pub use view::{
     memoize, static_view, Adapt, AdaptState, AdaptThunk, AnyView, BoxedView, ElementsSplice,
     Memoize, MemoizeState, Pod, View, ViewMarker, ViewSequence,

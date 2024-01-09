@@ -5,7 +5,7 @@
 //! traits for DOM node generation.
 
 use crate::{context::Cx, ChangeFlags, Hydrate};
-use std::{any::Any, borrow::Cow, ops::Deref};
+use std::{any::Any, borrow::Cow, ops::Deref, rc::Rc};
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{Id, MessageResult};
 
@@ -213,6 +213,43 @@ impl_to_string_view!(u128);
 impl_to_string_view!(isize);
 impl_to_string_view!(usize);
 
+impl<T, A, VT: ViewSequence<T, A>> ViewSequence<T, A> for Rc<VT> {
+    type State = VT::State;
+
+    fn build(&self, cx: &mut Cx, elements: &mut dyn ElementsSplice) -> Self::State {
+        <VT>::build(self.as_ref(), cx, elements)
+    }
+
+    fn rebuild(
+        &self,
+        cx: &mut Cx,
+        prev: &Self,
+        state: &mut Self::State,
+        elements: &mut dyn ElementsSplice,
+    ) -> ChangeFlags {
+        // if Rc::ptr_eq(self, prev) {
+        <VT>::rebuild(self.as_ref(), cx, prev.as_ref(), state, elements)
+        // } else {
+
+        // }
+    }
+
+    fn message(
+        &self,
+        id_path: &[Id],
+        state: &mut Self::State,
+        message: Box<dyn std::any::Any>,
+        app_state: &mut T,
+    ) -> MessageResult<A> {
+        <VT>::message(self.as_ref(), id_path, state, message, app_state)
+        // todo!()
+    }
+
+    fn count(&self, state: &Self::State) -> usize {
+        <VT>::count(self.as_ref(), state)
+    }
+}
+
 impl<T, A, VT: ViewSequence<T, A>> ViewSequence<T, A> for &[VT] {
     type State = Vec<VT::State>;
 
@@ -260,14 +297,14 @@ impl<T, A, VT: ViewSequence<T, A>> ViewSequence<T, A> for &[VT] {
 
     fn message(
         &self,
-        id_path: &[xilem_core::Id],
+        id_path: &[Id],
         state: &mut Self::State,
         message: Box<dyn std::any::Any>,
         app_state: &mut T,
-    ) -> xilem_core::MessageResult<A> {
-        let mut result = xilem_core::MessageResult::Stale(message);
+    ) -> MessageResult<A> {
+        let mut result = MessageResult::Stale(message);
         for (child, child_state) in self.iter().zip(state) {
-            if let xilem_core::MessageResult::Stale(message) = result {
+            if let MessageResult::Stale(message) = result {
                 result = child.message(id_path, child_state, message, app_state);
             } else {
                 break;

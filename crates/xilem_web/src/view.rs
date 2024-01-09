@@ -213,6 +213,69 @@ impl_to_string_view!(u128);
 impl_to_string_view!(isize);
 impl_to_string_view!(usize);
 
+impl<T, A, VT: ViewSequence<T, A>> ViewSequence<T, A> for &[VT] {
+    type State = Vec<VT::State>;
+
+    fn build(&self, cx: &mut Cx, elements: &mut dyn ElementsSplice) -> Self::State {
+        self.iter().map(|child| child.build(cx, elements)).collect()
+    }
+
+    fn rebuild(
+        &self,
+        cx: &mut Cx,
+        prev: &Self,
+        state: &mut Self::State,
+        elements: &mut dyn ElementsSplice,
+    ) -> ChangeFlags {
+        let mut changed = <ChangeFlags>::default();
+        for ((child, child_prev), child_state) in self.iter().zip(prev.iter()).zip(state.iter_mut())
+        {
+            let el_changed = child.rebuild(cx, child_prev, child_state, elements);
+            changed |= el_changed;
+        }
+        let n = self.len();
+        if n < prev.len() {
+            let n_delete = state
+                .splice(n.., [])
+                .enumerate()
+                .map(|(i, state)| prev[n + i].count(&state))
+                .sum();
+            elements.delete(n_delete);
+            changed |= <ChangeFlags>::tree_structure();
+        } else if n > prev.len() {
+            for i in prev.len()..n {
+                state.push(self[i].build(cx, elements));
+            }
+            changed |= <ChangeFlags>::tree_structure();
+        }
+        changed
+    }
+
+    fn count(&self, state: &Self::State) -> usize {
+        self.iter()
+            .zip(state)
+            .map(|(child, child_state)| child.count(child_state))
+            .sum()
+    }
+
+    fn message(
+        &self,
+        id_path: &[xilem_core::Id],
+        state: &mut Self::State,
+        message: Box<dyn std::any::Any>,
+        app_state: &mut T,
+    ) -> xilem_core::MessageResult<A> {
+        let mut result = xilem_core::MessageResult::Stale(message);
+        for (child, child_state) in self.iter().zip(state) {
+            if let xilem_core::MessageResult::Stale(message) = result {
+                result = child.message(id_path, child_state, message, app_state);
+            } else {
+                break;
+            }
+        }
+        result
+    }
+}
 fn new_text(text: &str) -> web_sys::Text {
     web_sys::Text::new_with_data(text).unwrap()
 }

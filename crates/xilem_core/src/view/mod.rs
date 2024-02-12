@@ -15,7 +15,7 @@ mod rc;
 ///    methods, and be responsible for managing element creation & deletion.
 ///  - `$changeflags` - The type that reports down/up the tree. Can be used to avoid
 ///    doing work when we can prove nothing needs doing.
-///  - `$super_bounds` - (optional) parent traits to this trait (e.g. `Send + Sync`).
+///  - `$super_bounds` - (optional) parent traits to this trait (e.g. `ViewMarker + Send + Sync`).
 ///  - `$state_bounds` - (optional) trait bounds for the associated type `State` (e.g. `Send`).
 #[macro_export]
 macro_rules! generate_view_trait {

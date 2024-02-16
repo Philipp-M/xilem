@@ -20,8 +20,10 @@ use accesskit::TreeUpdate;
 use glazier::{IdleHandle, IdleToken, WindowHandle};
 use parley::FontContext;
 use tokio::runtime::Runtime;
-use vello::kurbo::{Point, Rect, Size};
-use vello::SceneFragment;
+use vello::{
+    kurbo::{Point, Rect, Size},
+    Scene,
+};
 use xilem_core::{AsyncWake, MessageResult};
 
 use crate::widget::{
@@ -198,7 +200,11 @@ where
     }
 
     pub fn accessibility(&mut self) -> TreeUpdate {
-        let mut update = TreeUpdate::default();
+        let mut update = TreeUpdate {
+            nodes: vec![],
+            tree: None,
+            focus: accesskit::NodeId(0),
+        };
         self.ensure_root();
         let root_pod = self.root_pod.as_mut().unwrap();
         let mut window_node_builder = accesskit::NodeBuilder::new(accesskit::Role::Window);
@@ -377,7 +383,7 @@ where
 }
 
 impl<T, V: View<T>> App<T, V> {
-    pub fn fragment(&self) -> &SceneFragment {
+    pub fn fragment(&self) -> &Scene {
         &self.root_pod.as_ref().unwrap().fragment
     }
 }

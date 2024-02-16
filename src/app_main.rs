@@ -23,9 +23,8 @@ use vello::{
     kurbo::{Affine, Size},
     peniko::Color,
     util::{RenderContext, RenderSurface},
-    RenderParams, Renderer, RendererOptions,
+    AaSupport, RenderParams, Renderer, RendererOptions, Scene,
 };
-use vello::{Scene, SceneBuilder};
 
 use crate::{app::App, view::View, widget::Event};
 
@@ -218,8 +217,8 @@ where
             } else {
                 None
             };
-            let mut builder = SceneBuilder::for_scene(&mut self.scene);
-            builder.append(fragment, transform);
+            self.scene.reset();
+            self.scene.append(fragment, transform);
             self.counter += 1;
             let surface_texture = surface
                 .surface
@@ -230,15 +229,21 @@ where
             let queue = &self.render_cx.devices[dev_id].queue;
             let renderer_options = RendererOptions {
                 surface_format: Some(surface.format),
-                timestamp_period: queue.get_timestamp_period(),
+                use_cpu: false,
+                antialiasing_support: AaSupport {
+                    area: true,
+                    msaa8: false,
+                    msaa16: false,
+                },
             };
             let render_params = RenderParams {
                 base_color: Color::BLACK,
                 width,
                 height,
+                antialiasing_method: vello::AaConfig::Area,
             };
             self.renderer
-                .get_or_insert_with(|| Renderer::new(device, &renderer_options).unwrap())
+                .get_or_insert_with(|| Renderer::new(device, renderer_options).unwrap())
                 .render_to_surface(device, queue, &self.scene, &surface_texture, &render_params)
                 .expect("failed to render to surface");
             surface_texture.present();

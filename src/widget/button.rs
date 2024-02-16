@@ -18,10 +18,10 @@ use parley::Layout;
 use vello::{
     kurbo::{Affine, Insets, Size},
     peniko::{Brush, Color},
-    SceneBuilder,
+    Scene,
 };
 
-use crate::{text::ParleyBrush, IdPath, Message};
+use crate::{IdPath, Message};
 
 use super::{
     contexts::LifeCycleCx,
@@ -33,7 +33,7 @@ use super::{
 pub struct Button {
     id_path: IdPath,
     label: String,
-    layout: Option<Layout<ParleyBrush>>,
+    layout: Option<Layout<Brush>>,
 }
 
 impl Button {
@@ -96,8 +96,8 @@ impl Widget for Button {
         let mut lcx = parley::LayoutContext::new();
         let mut layout_builder = lcx.ranged_builder(cx.font_cx(), &self.label, 1.0);
 
-        layout_builder.push_default(&parley::style::StyleProperty::Brush(ParleyBrush(
-            Brush::Solid(Color::rgb8(0xf0, 0xf0, 0xea)),
+        layout_builder.push_default(&parley::style::StyleProperty::Brush(Brush::Solid(
+            Color::rgb8(0xf0, 0xf0, 0xea),
         )));
         let mut layout = layout_builder.build();
         // Question for Chad: is this needed?
@@ -119,7 +119,7 @@ impl Widget for Button {
         cx.push_node(builder);
     }
 
-    fn paint(&mut self, cx: &mut PaintCx, builder: &mut SceneBuilder) {
+    fn paint(&mut self, cx: &mut PaintCx, scene: &mut Scene) {
         let is_hot = cx.is_hot();
         let is_active = cx.is_active();
         let button_border_width = 2.0;
@@ -138,9 +138,9 @@ impl Widget for Button {
         } else {
             [Color::rgb8(0xa1, 0xa1, 0xa1), Color::rgb8(0x3a, 0x3a, 0x3a)]
         };
-        piet_scene_helpers::stroke(builder, &rounded_rect, border_color, button_border_width);
+        piet_scene_helpers::stroke(scene, &rounded_rect, border_color, button_border_width);
         piet_scene_helpers::fill_lin_gradient(
-            builder,
+            scene,
             &rounded_rect,
             bg_stops,
             UnitPoint::TOP,
@@ -150,7 +150,7 @@ impl Widget for Button {
             let size = Size::new(layout.width() as f64, layout.height() as f64);
             let offset = (cx.size().to_vec2() - size.to_vec2()) * 0.5;
             let transform = Affine::translate(offset);
-            crate::text::render_text(builder, transform, layout);
+            crate::text::render_text(scene, transform, layout);
         }
     }
 }

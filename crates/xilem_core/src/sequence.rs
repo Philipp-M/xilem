@@ -338,10 +338,10 @@ macro_rules! generate_viewsequence_trait {
         }
 
         impl<T, A, const N: usize, VT: $viewseq<T, A>> $viewseq<T, A> for [VT; N] {
-            type State = [VT::State; N];
+            type State = Vec<VT::State>;
 
             fn build(&self, cx: &mut Cx, elements: &mut dyn $elements_splice) -> Self::State {
-                self.each_ref().map(|vs| vs.build(cx, elements))
+                self.iter().map(|vs| vs.build(cx, elements)).collect()
             }
 
             fn rebuild(

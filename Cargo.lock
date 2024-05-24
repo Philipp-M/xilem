@@ -3848,6 +3848,7 @@ dependencies = [
  "tracing",
  "vello",
  "winit",
+ "xilem_core",
 ]
 
 [[package]]

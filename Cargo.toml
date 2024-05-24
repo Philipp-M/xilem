@@ -6,7 +6,7 @@ members = [
     "masonry",
 
     "xilem_web",
-    "xilem_web_core",
+    "xilem_web/xilem_web_core",
     "xilem_web/web_examples/counter",
     "xilem_web/web_examples/counter_custom_element",
     "xilem_web/web_examples/todomvc",
@@ -24,7 +24,7 @@ homepage = "https://xilem.dev/"
 clippy.semicolon_if_nothing_returned = "warn"
 
 [workspace.dependencies]
-xilem_web_core = { version = "0.1.0", path = "xilem_web_core" }
+xilem_web_core = { version = "0.1.0", path = "xilem_web/xilem_web_core" }
 masonry = { version = "0.2.0", path = "masonry" }
 vello = "0.1.0"
 wgpu = "0.19.4"

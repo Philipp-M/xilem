@@ -3851,10 +3851,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xilem_core"
-version = "0.1.0"
-
-[[package]]
 name = "xilem_core2"
 version = "0.1.0"
 
@@ -3869,8 +3865,12 @@ dependencies = [
  "peniko",
  "wasm-bindgen",
  "web-sys",
- "xilem_core",
+ "xilem_web_core",
 ]
+
+[[package]]
+name = "xilem_web_core"
+version = "0.1.0"
 
 [[package]]
 name = "xkbcommon-dl"

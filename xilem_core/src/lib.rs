@@ -34,9 +34,7 @@ pub use view::{View, ViewId, ViewPathTracker};
 
 mod views;
 pub use views::{
-    memoize, AsOrphanView, Memoize, OneOf2, OneOf2Ctx, OneOf3, OneOf3Ctx, OneOf4, OneOf4Ctx,
-    OneOf5, OneOf5Ctx, OneOf6, OneOf6Ctx, OneOf7, OneOf7Ctx, OneOf8, OneOf8Ctx, OneOf9, OneOf9Ctx,
-    OrphanView,
+    memoize, AsOrphanView, Memoize, Noop, NoopCtx, OneOf2, OneOf2Ctx, OrphanView,
 };
 
 mod message;

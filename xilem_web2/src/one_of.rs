@@ -1,8 +1,9 @@
 use wasm_bindgen::UnwrapThrowExt;
-use xilem_core::{Mut, OneOf2, OneOf2Ctx};
+use xilem_core::{Mut, Noop, NoopCtx, OneOf2, OneOf2Ctx};
 
 use crate::{
-    attribute::WithAttributes, class::WithClasses, AttributeValue, DomNode, Pod, PodMut, ViewCtx,
+    attribute::WithAttributes, class::WithClasses, elements::html, interfaces::Element,
+    AttributeValue, DomNode, DomView, Pod, PodMut, ViewCtx,
 };
 
 type CowStr = std::borrow::Cow<'static, str>;
@@ -61,6 +62,48 @@ impl<P1: 'static, P2: 'static, N1: DomNode<P1>, N2: DomNode<P2>> OneOf2Ctx<Pod<N
             unreachable!()
         };
         f(PodMut::new(node, props, elem.parent, elem.was_removed));
+    }
+}
+
+impl NoopCtx for ViewCtx {
+    type NoopElement = Pod<Noop, Noop>;
+}
+
+impl WithAttributes for Noop {
+    fn start_attribute_modifier(&mut self) {
+        unreachable!()
+    }
+
+    fn end_attribute_modifier(&mut self) {
+        unreachable!()
+    }
+
+    fn set_attribute(&mut self, _name: CowStr, _value: Option<AttributeValue>) {
+        unreachable!()
+    }
+}
+
+impl WithClasses for Noop {
+    fn start_class_modifier(&mut self) {
+        unreachable!()
+    }
+
+    fn add_class(&mut self, _class_name: CowStr) {
+        unreachable!()
+    }
+
+    fn remove_class(&mut self, _class_name: CowStr) {
+        unreachable!()
+    }
+
+    fn end_class_modifier(&mut self) {
+        todo!()
+    }
+}
+
+impl<P> DomNode<P> for Noop {
+    fn apply_props(&self, _props: &mut P) {
+        unreachable!()
     }
 }
 
@@ -125,4 +168,16 @@ impl<P1, P2, E1: DomNode<P1>, E2: DomNode<P2>> DomNode<OneOf2<P1, P2>> for OneOf
             _ => unreachable!(),
         }
     }
+}
+
+fn one_of_view() -> impl DomView<()> {
+    // This works
+    OneOf2::<html::Div<(), ()>, Noop>::A(html::div(()))
+    // This doesn't
+    // OneOf2::A(html::div(()))
+}
+
+fn one_of_element() -> impl Element<()> {
+    OneOf2::<html::Div<(), ()>, Noop>::A(html::div(()))
+    // OneOf2::A(html::div(()))
 }

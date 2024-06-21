@@ -1,5 +1,5 @@
 use wasm_bindgen::UnwrapThrowExt;
-use xilem_core::{Mut, Noop, NoopCtx, OneOf, OneOf2, OneOfCtx};
+use xilem_core::{Mut, NoopCtx, OneOf, OneOf2, OneOfCtx};
 
 use crate::{
     attribute::WithAttributes, class::WithClasses, elements::html, interfaces::Element,
@@ -106,6 +106,8 @@ where
     }
 }
 
+pub enum Noop {}
+
 impl NoopCtx for ViewCtx {
     type NoopElement = Pod<Noop, Noop>;
 }
@@ -142,13 +144,21 @@ impl WithClasses for Noop {
     }
 }
 
+impl<T> AsRef<T> for Noop {
+    fn as_ref(&self) -> &T {
+        unreachable!()
+    }
+}
+
 impl<P> DomNode<P> for Noop {
     fn apply_props(&self, _props: &mut P) {
         unreachable!()
     }
 }
 
-impl<E1: WithAttributes, E2: WithAttributes> WithAttributes for OneOf<E1, E2> {
+impl<E1: WithAttributes, E2: WithAttributes, E3: WithAttributes, E4: WithAttributes> WithAttributes
+    for OneOf<E1, E2, E3, E4>
+{
     fn start_attribute_modifier(&mut self) {
         match self {
             OneOf::A(e) => e.start_attribute_modifier(),
@@ -177,7 +187,9 @@ impl<E1: WithAttributes, E2: WithAttributes> WithAttributes for OneOf<E1, E2> {
     }
 }
 
-impl<E1: WithClasses, E2: WithClasses> WithClasses for OneOf<E1, E2> {
+impl<E1: WithClasses, E2: WithClasses, E3: WithClasses, E4: WithClasses> WithClasses
+    for OneOf<E1, E2, E3, E4>
+{
     fn start_class_modifier(&mut self) {
         match self {
             OneOf::A(e) => e.start_class_modifier(),
@@ -229,21 +241,21 @@ impl<P1, P2, P3, P4, E1: DomNode<P1>, E2: DomNode<P2>, E3: DomNode<P3>, E4: DomN
 
 fn one_of_view() -> impl DomView<()> {
     // This works
-    OneOf2::<html::Div<(), ()>, Noop>::A(html::div(()))
+    OneOf2::<html::Div<(), ()>, html::Div<(), ()>>::A(html::div(()))
     // This doesn't
     // OneOf2::A(html::div(()))
 }
 
 fn one_of_element() -> impl Element<()> {
-    OneOf2::<html::Div<(), ()>, Noop>::A(html::div(()))
+    OneOf2::<html::Div<(), ()>, html::Div<(), ()>>::A(html::div(()))
     // OneOf2::A(html::div(()))
 }
 
-// This one works, when we don't have an impl ViewSequence for OneOf2
-fn one_of_ambiguous_seq() -> impl DomView<()> {
-    html::div(if true {
-        OneOf2::A(html::div(()))
-    } else {
-        OneOf2::B(html::span(()))
-    })
-}
+// // This one works, when we don't have an impl ViewSequence for OneOf2
+// fn one_of_ambiguous_seq() -> impl DomView<()> {
+//     html::div(if true {
+//         OneOf2::A(html::div(()))
+//     } else {
+//         OneOf2::B(html::span(()))
+//     })
+// }

@@ -4,8 +4,6 @@ use crate::{
 };
 
 /// TODO
-pub enum Noop {}
-
 pub trait NoopCtx {
     /// Element wrapper, that holds the current view element variant
     type NoopElement: ViewElement;
@@ -34,60 +32,11 @@ pub enum OneOf2<A, B> {
 }
 
 #[allow(missing_docs)]
-pub enum OneOf<A = Noop, B = Noop, C = Noop, D = Noop> {
+pub enum OneOf<A = (), B = (), C = (), D = ()> {
     A(A),
     B(B),
     C(C),
     D(D),
-}
-
-impl ViewElement for Noop {
-    type Mut<'a> = Noop;
-}
-
-impl<State, Action, Context: ViewPathTracker + NoopCtx> View<State, Action, Context> for Noop {
-    type Element = Context::NoopElement;
-
-    type ViewState = ();
-
-    fn build(&self, _ctx: &mut Context) -> (Self::Element, Self::ViewState) {
-        unreachable!()
-    }
-
-    fn rebuild<'el>(
-        &self,
-        _prev: &Self,
-        _view_state: &mut Self::ViewState,
-        _ctx: &mut Context,
-        _element: Mut<'el, Self::Element>,
-    ) -> Mut<'el, Self::Element> {
-        unreachable!()
-    }
-
-    fn teardown(
-        &self,
-        _view_state: &mut Self::ViewState,
-        _ctx: &mut Context,
-        _element: Mut<'_, Self::Element>,
-    ) {
-        unreachable!()
-    }
-
-    fn message(
-        &self,
-        _view_state: &mut Self::ViewState,
-        _id_path: &[ViewId],
-        _message: DynMessage,
-        _app_state: &mut State,
-    ) -> MessageResult<Action> {
-        unreachable!()
-    }
-}
-
-impl<T> AsRef<T> for Noop {
-    fn as_ref(&self) -> &T {
-        unreachable!()
-    }
 }
 
 impl<T, A: AsRef<T>, B: AsRef<T>> AsRef<T> for OneOf2<A, B> {
@@ -107,49 +56,6 @@ impl<T, A: AsRef<T>, B: AsRef<T>, C: AsRef<T>, D: AsRef<T>> AsRef<T> for OneOf<A
             OneOf::C(e) => <C as AsRef<T>>::as_ref(e),
             OneOf::D(e) => <D as AsRef<T>>::as_ref(e),
         }
-    }
-}
-
-impl<State, Action, Context: ViewPathTracker, Element: ViewElement>
-    ViewSequence<State, Action, Context, Element, Noop> for Noop
-{
-    type SeqState = ();
-
-    fn seq_build(&self, _ctx: &mut Context, _elements: &mut AppendVec<Element>) -> Self::SeqState {
-        unreachable!()
-    }
-
-    fn seq_rebuild(
-        &self,
-        _prev: &Self,
-        _seq_state: &mut Self::SeqState,
-        _ctx: &mut Context,
-        _elements: &mut impl ElementSplice<Element>,
-    ) {
-        unreachable!()
-    }
-
-    fn seq_teardown(
-        &self,
-        _seq_state: &mut Self::SeqState,
-        _ctx: &mut Context,
-        _elements: &mut impl ElementSplice<Element>,
-    ) {
-        unreachable!()
-    }
-
-    fn seq_message(
-        &self,
-        _seq_state: &mut Self::SeqState,
-        _id_path: &[ViewId],
-        _message: DynMessage,
-        _app_state: &mut State,
-    ) -> MessageResult<Action> {
-        unreachable!()
-    }
-
-    fn count(&self, _state: &Self::SeqState) -> usize {
-        unreachable!()
     }
 }
 

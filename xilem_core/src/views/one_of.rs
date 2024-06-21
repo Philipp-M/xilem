@@ -1,12 +1,136 @@
-use crate::{
-    AppendVec, DynMessage, ElementSplice, MessageResult, Mut, View, ViewElement, ViewId,
-    ViewPathTracker, ViewSequence,
-};
+use crate::{DynMessage, MessageResult, Mut, View, ViewElement, ViewId, ViewPathTracker};
 
-/// TODO
-pub trait NoopCtx {
+/// This trait allows, specifying a type as `ViewElement`, which should never be constructed or used,
+/// but allows downstream implementations to adjust the behaviour of [`PhantomElementCtx::PhantomElement`],
+/// e.g. adding trait impls, or a wrapper type, to support features that would depend on the `ViewElement` implementing certain traits.
+///
+/// [`PhantomElementCtx::PhantomElement`] is used e.g. in `OneOfCtx` for default elements.
+pub trait PhantomElementCtx {
+    /// This element is never actually used, it's there to satisfy the type-checker
+    type PhantomElement: ViewElement;
+}
+
+/// This is used for updating the underlying view element for all the `OneOfN` views.
+/// It's mostly there, to avoid hardcoding all of the `OneOfN` variants in traits
+/// The `OneOfN` views are a workaround over using this as `View`,
+/// since with defaults for generic parameters rustc is unfortunately not able to infer the default, when the variants are omitted
+#[allow(missing_docs)]
+pub enum OneOf<A = (), B = (), C = (), D = (), E = (), F = (), G = (), H = (), I = ()> {
+    A(A),
+    B(B),
+    C(C),
+    D(D),
+    E(E),
+    F(F),
+    G(G),
+    H(H),
+    I(I),
+}
+
+impl<T, A, B, C, D, E, F, G, H, I> AsRef<T> for OneOf<A, B, C, D, E, F, G, H, I>
+where
+    A: AsRef<T>,
+    B: AsRef<T>,
+    C: AsRef<T>,
+    D: AsRef<T>,
+    E: AsRef<T>,
+    F: AsRef<T>,
+    G: AsRef<T>,
+    H: AsRef<T>,
+    I: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        match self {
+            OneOf::A(e) => <A as AsRef<T>>::as_ref(e),
+            OneOf::B(e) => <B as AsRef<T>>::as_ref(e),
+            OneOf::C(e) => <C as AsRef<T>>::as_ref(e),
+            OneOf::D(e) => <D as AsRef<T>>::as_ref(e),
+            OneOf::E(e) => <E as AsRef<T>>::as_ref(e),
+            OneOf::F(e) => <F as AsRef<T>>::as_ref(e),
+            OneOf::G(e) => <G as AsRef<T>>::as_ref(e),
+            OneOf::H(e) => <H as AsRef<T>>::as_ref(e),
+            OneOf::I(e) => <I as AsRef<T>>::as_ref(e),
+        }
+    }
+}
+
+/// To be able to use `OneOfN` as a `View`, it's necessary to implement [`OneOfCtx`] for your `ViewCtx` type
+pub trait OneOfCtx<
+    A: ViewElement = <Self as PhantomElementCtx>::PhantomElement,
+    B: ViewElement = <Self as PhantomElementCtx>::PhantomElement,
+    C: ViewElement = <Self as PhantomElementCtx>::PhantomElement,
+    D: ViewElement = <Self as PhantomElementCtx>::PhantomElement,
+    E: ViewElement = <Self as PhantomElementCtx>::PhantomElement,
+    F: ViewElement = <Self as PhantomElementCtx>::PhantomElement,
+    G: ViewElement = <Self as PhantomElementCtx>::PhantomElement,
+    H: ViewElement = <Self as PhantomElementCtx>::PhantomElement,
+    I: ViewElement = <Self as PhantomElementCtx>::PhantomElement,
+>: PhantomElementCtx
+{
     /// Element wrapper, that holds the current view element variant
-    type NoopElement: ViewElement;
+    type OneOfElement: ViewElement;
+
+    /// Casts the view element `elem` to the `OneOf::A` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_a(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, A>));
+
+    /// Casts the view element `elem` to the `OneOf::B` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_b(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, B>));
+
+    /// Casts the view element `elem` to the `OneOf::C` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_c(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, C>));
+
+    /// Casts the view element `elem` to the `OneOf::D` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_d(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, D>));
+
+    /// Casts the view element `elem` to the `OneOf::E` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_e(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, E>));
+
+    /// Casts the view element `elem` to the `OneOf::F` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_f(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, F>));
+
+    /// Casts the view element `elem` to the `OneOf::G` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_g(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, G>));
+
+    /// Casts the view element `elem` to the `OneOf::H` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_h(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, H>));
+
+    /// Casts the view element `elem` to the `OneOf::I` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_i(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, I>));
+
+    /// Creates the wrapping element, this is used in `View::build` to wrap the inner view element variant
+    fn upcast_one_of_two_element(elem: OneOf<A, B, C, D, E, F, G, H, I>) -> Self::OneOfElement;
+
+    /// When the variant of the inner view element has changed, the wrapping element needs to be updated, this is used in `View::rebuild`
+    fn update_one_of_two_element_mut(
+        elem_mut: &mut Mut<'_, Self::OneOfElement>,
+        new_elem: OneOf<A, B, C, D, E, F, G, H, I>,
+    );
+}
+
+#[doc(hidden)] // Implementation detail, `OneOfState` is public because of trait visibility rules
+mod hidden {
+    /// The state used to implement `View` for `OneOf`
+    #[allow(unreachable_pub)]
+    pub struct OneOfState<A = (), B = (), C = (), D = (), E = (), F = (), G = (), H = (), I = ()> {
+        /// The current state of the inner view or view sequence.
+        pub(super) inner_state: super::OneOf<A, B, C, D, E, F, G, H, I>,
+        /// The generation this OneOf is at.
+        ///
+        /// If the variant of `OneOf` has changed, i.e. the type of the inner view,
+        /// the generation is incremented and used as ViewId in the id_path,
+        /// to avoid (possibly async) messages reaching the wrong view,
+        /// See the implementations of other `ViewSequence`s for more details
+        pub(super) generation: u64,
+    }
 }
 
 /// Statically typed alternative to the type-erased `AnyView`
@@ -31,14 +155,6 @@ pub enum OneOf2<A, B> {
     B(B),
 }
 
-#[allow(missing_docs)]
-pub enum OneOf<A = (), B = (), C = (), D = ()> {
-    A(A),
-    B(B),
-    C(C),
-    D(D),
-}
-
 impl<T, A: AsRef<T>, B: AsRef<T>> AsRef<T> for OneOf2<A, B> {
     fn as_ref(&self) -> &T {
         match self {
@@ -46,68 +162,6 @@ impl<T, A: AsRef<T>, B: AsRef<T>> AsRef<T> for OneOf2<A, B> {
             OneOf2::B(e) => <B as AsRef<T>>::as_ref(e),
         }
     }
-}
-
-impl<T, A: AsRef<T>, B: AsRef<T>, C: AsRef<T>, D: AsRef<T>> AsRef<T> for OneOf<A, B, C, D> {
-    fn as_ref(&self) -> &T {
-        match self {
-            OneOf::A(e) => <A as AsRef<T>>::as_ref(e),
-            OneOf::B(e) => <B as AsRef<T>>::as_ref(e),
-            OneOf::C(e) => <C as AsRef<T>>::as_ref(e),
-            OneOf::D(e) => <D as AsRef<T>>::as_ref(e),
-        }
-    }
-}
-
-/// To be able to use `OneOf` as a `View`, it's necessary to implement `OneOfCtx` for your `ViewCtx` type
-pub trait OneOfCtx<
-    A: ViewElement = <Self as NoopCtx>::NoopElement,
-    B: ViewElement = <Self as NoopCtx>::NoopElement,
-    C: ViewElement = <Self as NoopCtx>::NoopElement,
-    D: ViewElement = <Self as NoopCtx>::NoopElement,
->: NoopCtx
-{
-    /// Element wrapper, that holds the current view element variant
-    type OneOfElement: ViewElement;
-
-    /// Casts the view element `elem` to the `OneOf::A` variant.
-    /// `f` needs to be invoked with that inner `ViewElement`
-    fn with_downcast_a(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, A>));
-
-    /// Casts the view element `elem` to the `OneOf::B` variant.
-    /// `f` needs to be invoked with that inner `ViewElement`
-    fn with_downcast_b(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, B>));
-
-    /// Casts the view element `elem` to the `OneOf::B` variant.
-    /// `f` needs to be invoked with that inner `ViewElement`
-    fn with_downcast_c(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, C>));
-
-    /// Casts the view element `elem` to the `OneOf::B` variant.
-    /// `f` needs to be invoked with that inner `ViewElement`
-    fn with_downcast_d(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, D>));
-
-    /// Creates the wrapping element, this is used in `View::build` to wrap the inner view element variant
-    fn upcast_one_of_two_element(elem: OneOf<A, B, C, D>) -> Self::OneOfElement;
-
-    /// When the variant of the inner view element has changed, the wrapping element needs to be updated, this is used in `View::rebuild`
-    fn update_one_of_two_element_mut(
-        elem_mut: &mut Mut<'_, Self::OneOfElement>,
-        new_elem: OneOf<A, B, C, D>,
-    );
-}
-
-/// The state used to implement `View` or `ViewSequence` for `OneOf`
-#[doc(hidden)] // Implementation detail, public because of trait visibility rules
-pub struct OneOfState<A = (), B = (), C = (), D = ()> {
-    /// The current state of the inner view or view sequence.
-    inner_state: OneOf<A, B, C, D>,
-    /// The generation this OneOf is at.
-    ///
-    /// If the variant of `OneOf` has changed, i.e. the type of the inner view,
-    /// the generation is incremented and used as ViewId in the id_path,
-    /// to avoid (possibly async) messages reaching the wrong view,
-    /// See the implementations of other `ViewSequence`s for more details
-    generation: u64,
 }
 
 impl<A, B, Context, State, Action> View<State, Action, Context> for OneOf2<A, B>
@@ -120,7 +174,7 @@ where
 {
     type Element = Context::OneOfElement;
 
-    type ViewState = OneOfState<A::ViewState, B::ViewState>;
+    type ViewState = hidden::OneOfState<A::ViewState, B::ViewState>;
 
     fn build(&self, ctx: &mut Context) -> (Self::Element, Self::ViewState) {
         let generation = 0;
@@ -142,7 +196,7 @@ where
         });
         (
             element,
-            OneOfState {
+            hidden::OneOfState {
                 inner_state,
                 generation,
             },
@@ -261,126 +315,6 @@ where
         match (self, &mut view_state.inner_state) {
             (OneOf2::A(view), OneOf::A(state)) => view.message(state, rest, message, app_state),
             (OneOf2::B(view), OneOf::B(state)) => view.message(state, rest, message, app_state),
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl<State, Action, Context, Element, MarkerA, MarkerB, A, B>
-    ViewSequence<State, Action, Context, Element, OneOf<MarkerA, MarkerB>> for OneOf2<A, B>
-where
-    A: ViewSequence<State, Action, Context, Element, MarkerA>,
-    B: ViewSequence<State, Action, Context, Element, MarkerB>,
-    Context: ViewPathTracker,
-    Element: ViewElement,
-{
-    type SeqState = OneOfState<A::SeqState, B::SeqState>;
-
-    fn seq_build(&self, ctx: &mut Context, elements: &mut AppendVec<Element>) -> Self::SeqState {
-        let generation = 0;
-        let inner_state = ctx.with_id(ViewId::new(generation), |ctx| match self {
-            OneOf2::A(e) => OneOf::A(e.seq_build(ctx, elements)),
-            OneOf2::B(e) => OneOf::B(e.seq_build(ctx, elements)),
-        });
-        OneOfState {
-            inner_state,
-            generation,
-        }
-    }
-
-    fn seq_rebuild(
-        &self,
-        prev: &Self,
-        seq_state: &mut Self::SeqState,
-        ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
-    ) {
-        // Type of the inner `ViewSequence` stayed the same
-        match (prev, self, &mut seq_state.inner_state) {
-            (OneOf2::A(prev), OneOf2::A(new), OneOf::A(inner_state)) => {
-                ctx.with_id(ViewId::new(seq_state.generation), |ctx| {
-                    new.seq_rebuild(prev, inner_state, ctx, elements);
-                });
-                return;
-            }
-            (OneOf2::B(prev), OneOf2::B(new), OneOf::B(inner_state)) => {
-                ctx.with_id(ViewId::new(seq_state.generation), |ctx| {
-                    new.seq_rebuild(prev, inner_state, ctx, elements);
-                });
-                return;
-            }
-            _ => (),
-        };
-
-        // `ViewSequence` has changed type, teardown the old view sequence
-        prev.seq_teardown(seq_state, ctx, elements);
-
-        // Overflow handling: u64 starts at 0, incremented by 1 always.
-        // Can never realistically overflow, scale is too large.
-        // If would overflow, wrap to zero. Would need async message sent
-        // to view *exactly* `u64::MAX` versions of the view ago, which is implausible
-        seq_state.generation = seq_state.generation.wrapping_add(1);
-
-        // Create the new view sequence
-
-        ctx.with_id(ViewId::new(seq_state.generation), |ctx| {
-            match self {
-                OneOf2::A(new) => {
-                    seq_state.inner_state =
-                        OneOf::A(elements.with_scratch(|elements| new.seq_build(ctx, elements)));
-                }
-                OneOf2::B(new) => {
-                    seq_state.inner_state =
-                        OneOf::B(elements.with_scratch(|elements| new.seq_build(ctx, elements)));
-                }
-            };
-        });
-    }
-
-    fn seq_teardown(
-        &self,
-        seq_state: &mut Self::SeqState,
-        ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
-    ) {
-        ctx.with_id(ViewId::new(seq_state.generation), |ctx| {
-            match (self, &mut seq_state.inner_state) {
-                (OneOf2::A(view), OneOf::A(state)) => {
-                    view.seq_teardown(state, ctx, elements);
-                }
-                (OneOf2::B(view), OneOf::B(state)) => {
-                    view.seq_teardown(state, ctx, elements);
-                }
-                _ => unreachable!(),
-            }
-        });
-    }
-
-    fn seq_message(
-        &self,
-        seq_state: &mut Self::SeqState,
-        id_path: &[ViewId],
-        message: DynMessage,
-        app_state: &mut State,
-    ) -> MessageResult<Action> {
-        let (start, rest) = id_path
-            .split_first()
-            .expect("Id path has elements for OneOf2");
-        if start.routing_id() != seq_state.generation {
-            // The message was sent to a previous edition of the inner value
-            return MessageResult::Stale(message);
-        }
-        match (self, &mut seq_state.inner_state) {
-            (OneOf2::A(view), OneOf::A(state)) => view.seq_message(state, rest, message, app_state),
-            (OneOf2::B(view), OneOf::B(state)) => view.seq_message(state, rest, message, app_state),
-            _ => MessageResult::Stale(message),
-        }
-    }
-
-    fn count(&self, state: &Self::SeqState) -> usize {
-        match (self, &state.inner_state) {
-            (OneOf2::A(seq), OneOf::A(state)) => seq.count(state),
-            (OneOf2::B(seq), OneOf::B(state)) => seq.count(state),
             _ => unreachable!(),
         }
     }

@@ -9,8 +9,8 @@ use wasm_bindgen::UnwrapThrowExt;
 use web_sys::wasm_bindgen::JsCast;
 
 pub use xilem_core::{
-    memoize, AnyElement, AnyView, AppendVec, DynMessage, MessageResult, Mut,
-    OneOf2, OneOfCtx, SuperElement, View, ViewElement, ViewId, ViewPathTracker, ViewSequence,
+    memoize, one_of::OneOfCtx, AnyElement, AnyView, AppendVec, DynMessage, MessageResult, Mut,
+    SuperElement, View, ViewElement, ViewId, ViewPathTracker, ViewSequence,
 };
 
 /// The HTML namespace

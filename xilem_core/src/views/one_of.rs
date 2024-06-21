@@ -28,9 +28,17 @@ pub trait NoopCtx {
 /// seq = OneOf2::B(vec![my_view()]);
 /// ```
 #[allow(missing_docs)]
-pub enum OneOf2<A, B = Noop> {
+pub enum OneOf2<A, B> {
     A(A),
     B(B),
+}
+
+#[allow(missing_docs)]
+pub enum OneOf<A = Noop, B = Noop, C = Noop, D = Noop> {
+    A(A),
+    B(B),
+    C(C),
+    D(D),
 }
 
 impl ViewElement for Noop {
@@ -91,6 +99,17 @@ impl<T, A: AsRef<T>, B: AsRef<T>> AsRef<T> for OneOf2<A, B> {
     }
 }
 
+impl<T, A: AsRef<T>, B: AsRef<T>, C: AsRef<T>, D: AsRef<T>> AsRef<T> for OneOf<A, B, C, D> {
+    fn as_ref(&self) -> &T {
+        match self {
+            OneOf::A(e) => <A as AsRef<T>>::as_ref(e),
+            OneOf::B(e) => <B as AsRef<T>>::as_ref(e),
+            OneOf::C(e) => <C as AsRef<T>>::as_ref(e),
+            OneOf::D(e) => <D as AsRef<T>>::as_ref(e),
+        }
+    }
+}
+
 impl<State, Action, Context: ViewPathTracker, Element: ViewElement>
     ViewSequence<State, Action, Context, Element, Noop> for Noop
 {
@@ -134,37 +153,51 @@ impl<State, Action, Context: ViewPathTracker, Element: ViewElement>
     }
 }
 
-/// To be able to use this `OneOf2` as a `View`, it's necessary to implement `OneOf2Ctx` for your `ViewCtx` type
-pub trait OneOf2Ctx<A: ViewElement, B: ViewElement> {
+/// To be able to use `OneOf` as a `View`, it's necessary to implement `OneOfCtx` for your `ViewCtx` type
+pub trait OneOfCtx<
+    A: ViewElement = <Self as NoopCtx>::NoopElement,
+    B: ViewElement = <Self as NoopCtx>::NoopElement,
+    C: ViewElement = <Self as NoopCtx>::NoopElement,
+    D: ViewElement = <Self as NoopCtx>::NoopElement,
+>: NoopCtx
+{
     /// Element wrapper, that holds the current view element variant
-    type OneOfTwoElement: ViewElement;
+    type OneOfElement: ViewElement;
 
-    /// Casts the view element `elem` to the `OneOf2::A` variant.
+    /// Casts the view element `elem` to the `OneOf::A` variant.
     /// `f` needs to be invoked with that inner `ViewElement`
-    fn with_downcast_a(elem: &mut Mut<'_, Self::OneOfTwoElement>, f: impl FnOnce(Mut<'_, A>));
+    fn with_downcast_a(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, A>));
 
-    /// Casts the view element `elem` to the `OneOf2::B` variant.
+    /// Casts the view element `elem` to the `OneOf::B` variant.
     /// `f` needs to be invoked with that inner `ViewElement`
-    fn with_downcast_b(elem: &mut Mut<'_, Self::OneOfTwoElement>, f: impl FnOnce(Mut<'_, B>));
+    fn with_downcast_b(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, B>));
+
+    /// Casts the view element `elem` to the `OneOf::B` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_c(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, C>));
+
+    /// Casts the view element `elem` to the `OneOf::B` variant.
+    /// `f` needs to be invoked with that inner `ViewElement`
+    fn with_downcast_d(elem: &mut Mut<'_, Self::OneOfElement>, f: impl FnOnce(Mut<'_, D>));
 
     /// Creates the wrapping element, this is used in `View::build` to wrap the inner view element variant
-    fn upcast_one_of_two_element(elem: OneOf2<A, B>) -> Self::OneOfTwoElement;
+    fn upcast_one_of_two_element(elem: OneOf<A, B, C, D>) -> Self::OneOfElement;
 
     /// When the variant of the inner view element has changed, the wrapping element needs to be updated, this is used in `View::rebuild`
     fn update_one_of_two_element_mut(
-        elem_mut: &mut Mut<'_, Self::OneOfTwoElement>,
-        new_elem: OneOf2<A, B>,
+        elem_mut: &mut Mut<'_, Self::OneOfElement>,
+        new_elem: OneOf<A, B, C, D>,
     );
 }
 
-/// The state used to implement `View` or `ViewSequence` for `OneOf2`
+/// The state used to implement `View` or `ViewSequence` for `OneOf`
 #[doc(hidden)] // Implementation detail, public because of trait visibility rules
-pub struct OneOf2State<A, B> {
+pub struct OneOfState<A = (), B = (), C = (), D = ()> {
     /// The current state of the inner view or view sequence.
-    inner_state: OneOf2<A, B>,
-    /// The generation this OneOf2 is at.
+    inner_state: OneOf<A, B, C, D>,
+    /// The generation this OneOf is at.
     ///
-    /// If the variant of `OneOf2` has changed, i.e. the type of the inner view,
+    /// If the variant of `OneOf` has changed, i.e. the type of the inner view,
     /// the generation is incremented and used as ViewId in the id_path,
     /// to avoid (possibly async) messages reaching the wrong view,
     /// See the implementations of other `ViewSequence`s for more details
@@ -175,13 +208,13 @@ impl<A, B, Context, State, Action> View<State, Action, Context> for OneOf2<A, B>
 where
     State: 'static,
     Action: 'static,
-    Context: ViewPathTracker + OneOf2Ctx<A::Element, B::Element>,
+    Context: ViewPathTracker + OneOfCtx<A::Element, B::Element>,
     A: View<State, Action, Context>,
     B: View<State, Action, Context>,
 {
-    type Element = Context::OneOfTwoElement;
+    type Element = Context::OneOfElement;
 
-    type ViewState = OneOf2State<A::ViewState, B::ViewState>;
+    type ViewState = OneOfState<A::ViewState, B::ViewState>;
 
     fn build(&self, ctx: &mut Context) -> (Self::Element, Self::ViewState) {
         let generation = 0;
@@ -189,21 +222,21 @@ where
             OneOf2::A(e) => {
                 let (element, state) = e.build(ctx);
                 (
-                    Context::upcast_one_of_two_element(OneOf2::A(element)),
-                    OneOf2::A(state),
+                    Context::upcast_one_of_two_element(OneOf::A(element)),
+                    OneOf::A(state),
                 )
             }
             OneOf2::B(e) => {
                 let (element, state) = e.build(ctx);
                 (
-                    Context::upcast_one_of_two_element(OneOf2::B(element)),
-                    OneOf2::B(state),
+                    Context::upcast_one_of_two_element(OneOf::B(element)),
+                    OneOf::B(state),
                 )
             }
         });
         (
             element,
-            OneOf2State {
+            OneOfState {
                 inner_state,
                 generation,
             },
@@ -219,7 +252,7 @@ where
     ) -> Mut<'e, Self::Element> {
         // Type of the inner `View` stayed the same
         match (prev, self, &mut view_state.inner_state) {
-            (OneOf2::A(prev), OneOf2::A(new), OneOf2::A(inner_state)) => {
+            (OneOf2::A(prev), OneOf2::A(new), OneOf::A(inner_state)) => {
                 ctx.with_id(ViewId::new(view_state.generation), |ctx| {
                     Context::with_downcast_a(&mut element, |elem| {
                         new.rebuild(prev, inner_state, ctx, elem);
@@ -227,7 +260,7 @@ where
                 });
                 return element;
             }
-            (OneOf2::B(prev), OneOf2::B(new), OneOf2::B(inner_state)) => {
+            (OneOf2::B(prev), OneOf2::B(new), OneOf::B(inner_state)) => {
                 ctx.with_id(ViewId::new(view_state.generation), |ctx| {
                     Context::with_downcast_b(&mut element, |elem| {
                         new.rebuild(prev, inner_state, ctx, elem);
@@ -243,12 +276,12 @@ where
 
         ctx.with_id(ViewId::new(view_state.generation), |ctx| {
             match (prev, &mut view_state.inner_state) {
-                (OneOf2::A(prev), OneOf2::A(old_state)) => {
+                (OneOf2::A(prev), OneOf::A(old_state)) => {
                     Context::with_downcast_a(&mut element, |elem| {
                         prev.teardown(old_state, ctx, elem);
                     });
                 }
-                (OneOf2::B(prev), OneOf2::B(old_state)) => {
+                (OneOf2::B(prev), OneOf::B(old_state)) => {
                     Context::with_downcast_b(&mut element, |elem| {
                         prev.teardown(old_state, ctx, elem);
                     });
@@ -269,13 +302,13 @@ where
             match self {
                 OneOf2::A(new) => {
                     let (new_element, state) = new.build(ctx);
-                    view_state.inner_state = OneOf2::A(state);
-                    Context::update_one_of_two_element_mut(&mut element, OneOf2::A(new_element));
+                    view_state.inner_state = OneOf::A(state);
+                    Context::update_one_of_two_element_mut(&mut element, OneOf::A(new_element));
                 }
                 OneOf2::B(new) => {
                     let (new_element, state) = new.build(ctx);
-                    view_state.inner_state = OneOf2::B(state);
-                    Context::update_one_of_two_element_mut(&mut element, OneOf2::B(new_element));
+                    view_state.inner_state = OneOf::B(state);
+                    Context::update_one_of_two_element_mut(&mut element, OneOf::B(new_element));
                 }
             };
         });
@@ -290,12 +323,12 @@ where
     ) {
         ctx.with_id(ViewId::new(view_state.generation), |ctx| {
             match (self, &mut view_state.inner_state) {
-                (OneOf2::A(view), OneOf2::A(state)) => {
+                (OneOf2::A(view), OneOf::A(state)) => {
                     Context::with_downcast_a(&mut element, |elem| {
                         view.teardown(state, ctx, elem);
                     });
                 }
-                (OneOf2::B(view), OneOf2::B(state)) => {
+                (OneOf2::B(view), OneOf::B(state)) => {
                     Context::with_downcast_b(&mut element, |elem| {
                         view.teardown(state, ctx, elem);
                     });
@@ -320,30 +353,30 @@ where
             return MessageResult::Stale(message);
         }
         match (self, &mut view_state.inner_state) {
-            (OneOf2::A(view), OneOf2::A(state)) => view.message(state, rest, message, app_state),
-            (OneOf2::B(view), OneOf2::B(state)) => view.message(state, rest, message, app_state),
+            (OneOf2::A(view), OneOf::A(state)) => view.message(state, rest, message, app_state),
+            (OneOf2::B(view), OneOf::B(state)) => view.message(state, rest, message, app_state),
             _ => unreachable!(),
         }
     }
 }
 
 impl<State, Action, Context, Element, MarkerA, MarkerB, A, B>
-    ViewSequence<State, Action, Context, Element, OneOf2<MarkerA, MarkerB>> for OneOf2<A, B>
+    ViewSequence<State, Action, Context, Element, OneOf<MarkerA, MarkerB>> for OneOf2<A, B>
 where
     A: ViewSequence<State, Action, Context, Element, MarkerA>,
     B: ViewSequence<State, Action, Context, Element, MarkerB>,
     Context: ViewPathTracker,
     Element: ViewElement,
 {
-    type SeqState = OneOf2State<A::SeqState, B::SeqState>;
+    type SeqState = OneOfState<A::SeqState, B::SeqState>;
 
     fn seq_build(&self, ctx: &mut Context, elements: &mut AppendVec<Element>) -> Self::SeqState {
         let generation = 0;
         let inner_state = ctx.with_id(ViewId::new(generation), |ctx| match self {
-            OneOf2::A(e) => OneOf2::A(e.seq_build(ctx, elements)),
-            OneOf2::B(e) => OneOf2::B(e.seq_build(ctx, elements)),
+            OneOf2::A(e) => OneOf::A(e.seq_build(ctx, elements)),
+            OneOf2::B(e) => OneOf::B(e.seq_build(ctx, elements)),
         });
-        OneOf2State {
+        OneOfState {
             inner_state,
             generation,
         }
@@ -358,13 +391,13 @@ where
     ) {
         // Type of the inner `ViewSequence` stayed the same
         match (prev, self, &mut seq_state.inner_state) {
-            (OneOf2::A(prev), OneOf2::A(new), OneOf2::A(inner_state)) => {
+            (OneOf2::A(prev), OneOf2::A(new), OneOf::A(inner_state)) => {
                 ctx.with_id(ViewId::new(seq_state.generation), |ctx| {
                     new.seq_rebuild(prev, inner_state, ctx, elements);
                 });
                 return;
             }
-            (OneOf2::B(prev), OneOf2::B(new), OneOf2::B(inner_state)) => {
+            (OneOf2::B(prev), OneOf2::B(new), OneOf::B(inner_state)) => {
                 ctx.with_id(ViewId::new(seq_state.generation), |ctx| {
                     new.seq_rebuild(prev, inner_state, ctx, elements);
                 });
@@ -388,11 +421,11 @@ where
             match self {
                 OneOf2::A(new) => {
                     seq_state.inner_state =
-                        OneOf2::A(elements.with_scratch(|elements| new.seq_build(ctx, elements)));
+                        OneOf::A(elements.with_scratch(|elements| new.seq_build(ctx, elements)));
                 }
                 OneOf2::B(new) => {
                     seq_state.inner_state =
-                        OneOf2::B(elements.with_scratch(|elements| new.seq_build(ctx, elements)));
+                        OneOf::B(elements.with_scratch(|elements| new.seq_build(ctx, elements)));
                 }
             };
         });
@@ -406,10 +439,10 @@ where
     ) {
         ctx.with_id(ViewId::new(seq_state.generation), |ctx| {
             match (self, &mut seq_state.inner_state) {
-                (OneOf2::A(view), OneOf2::A(state)) => {
+                (OneOf2::A(view), OneOf::A(state)) => {
                     view.seq_teardown(state, ctx, elements);
                 }
-                (OneOf2::B(view), OneOf2::B(state)) => {
+                (OneOf2::B(view), OneOf::B(state)) => {
                     view.seq_teardown(state, ctx, elements);
                 }
                 _ => unreachable!(),
@@ -432,20 +465,16 @@ where
             return MessageResult::Stale(message);
         }
         match (self, &mut seq_state.inner_state) {
-            (OneOf2::A(view), OneOf2::A(state)) => {
-                view.seq_message(state, rest, message, app_state)
-            }
-            (OneOf2::B(view), OneOf2::B(state)) => {
-                view.seq_message(state, rest, message, app_state)
-            }
+            (OneOf2::A(view), OneOf::A(state)) => view.seq_message(state, rest, message, app_state),
+            (OneOf2::B(view), OneOf::B(state)) => view.seq_message(state, rest, message, app_state),
             _ => MessageResult::Stale(message),
         }
     }
 
     fn count(&self, state: &Self::SeqState) -> usize {
         match (self, &state.inner_state) {
-            (OneOf2::A(seq), OneOf2::A(state)) => seq.count(state),
-            (OneOf2::B(seq), OneOf2::B(state)) => seq.count(state),
+            (OneOf2::A(seq), OneOf::A(state)) => seq.count(state),
+            (OneOf2::B(seq), OneOf::B(state)) => seq.count(state),
             _ => unreachable!(),
         }
     }

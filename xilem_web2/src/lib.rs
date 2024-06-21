@@ -10,7 +10,7 @@ use web_sys::wasm_bindgen::JsCast;
 
 pub use xilem_core::{
     memoize, AnyElement, AnyView, AppendVec, DynMessage, MessageResult, Mut,
-    OneOf2, OneOf2Ctx, SuperElement, View, ViewElement, ViewId, ViewPathTracker, ViewSequence,
+    OneOf2, OneOfCtx, SuperElement, View, ViewElement, ViewId, ViewPathTracker, ViewSequence,
 };
 
 /// The HTML namespace

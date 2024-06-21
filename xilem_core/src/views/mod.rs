@@ -5,7 +5,7 @@ mod memoize;
 pub use memoize::{memoize, Memoize};
 
 mod one_of;
-pub use one_of::{OneOf2, OneOf2Ctx, Noop, NoopCtx};
+pub use one_of::{Noop, NoopCtx, OneOf, OneOf2, OneOfCtx};
 
 mod orphan;
 pub use orphan::{AsOrphanView, OrphanView};

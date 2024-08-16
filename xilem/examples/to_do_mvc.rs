@@ -58,6 +58,7 @@ fn app_logic(task_list: &mut TaskList) -> impl WidgetView<TaskList> {
     .direction(Axis::Vertical);
 
     let filter_view = |label, filter| {
+        // TODO: replace with combo-buttons
         checkbox(
             label,
             task_list.filter == filter,

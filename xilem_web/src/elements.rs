@@ -256,12 +256,12 @@ where
     if ctx.is_hydrating() {
         let hydrating_node = ctx.hydrate_node().unwrap_throw();
         return (
-            Pod::hydrate_element(elements.into_inner(), hydrating_node).into(),
+            Pod::hydrate_element(elements.into_inner(), hydrating_node, ctx).into(),
             state,
         );
     }
     (
-        Pod::new_element(elements.into_inner(), ns, tag_name).into(),
+        Pod::new_element(elements.into_inner(), ns, tag_name, ctx).into(),
         state,
     )
 }

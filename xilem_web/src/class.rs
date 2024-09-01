@@ -1,12 +1,15 @@
 // Copyright 2024 the Xilem Authors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::marker::PhantomData;
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 
 use xilem_core::{MessageResult, Mut, View, ViewElement, ViewId, ViewMarker};
 
-use crate::{vecmap::VecMap, DomNode, DynMessage, ElementProps, Pod, PodMut, ViewCtx};
+use crate::{
+    element_props::ElementScratch, vecmap::VecMap, DomNode, DynMessage, ElementProps, Pod, PodMut,
+    ViewCtx,
+};
 
 type CowStr = std::borrow::Cow<'static, str>;
 
@@ -88,71 +91,79 @@ pub trait WithClasses {
 enum ClassModifier {
     Remove(CowStr),
     Add(CowStr),
-    EndMarker(usize),
+    EndMarker(u16),
+}
+
+#[derive(Debug, Default)]
+/// A shared storage, which is temporarily used for updating classes on an element
+pub struct ClassScratch {
+    // TODO maybe this attribute is redundant and can be formed just from the class_modifiers attribute
+    classes: VecMap<CowStr, ()>,
+    class_name: String,
+    dirty: bool,
 }
 
 /// This contains all the current classes of an [`Element`](`crate::interfaces::Element`)
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Classes {
-    // TODO maybe this attribute is redundant and can be formed just from the class_modifiers attribute
-    classes: VecMap<CowStr, ()>,
-    class_modifiers: Vec<ClassModifier>,
-    class_name: String,
-    idx: usize,
-    start_idx: usize,
-    dirty: bool,
-    #[cfg(feature = "hydration")]
-    pub(crate) in_hydration: bool,
+    modifiers: Vec<ClassModifier>,
+    scratch: Rc<RefCell<ElementScratch>>,
+    idx: u16,
+    start_idx: u16,
 }
 
 #[cfg(feature = "hydration")]
 impl Classes {
-    pub(crate) fn new(in_hydration: bool) -> Self {
+    pub(crate) fn new(scratch: Rc<RefCell<ElementScratch>>, capacity: usize) -> Self {
         Self {
-            in_hydration,
-            ..Default::default()
+            scratch,
+            modifiers: Vec::with_capacity(capacity),
+            idx: 0,
+            start_idx: 0,
         }
     }
 }
 
 impl Classes {
     pub fn apply_class_changes(&mut self, element: &web_sys::Element) {
+        let mut scratch = self.scratch.borrow_mut();
         #[cfg(feature = "hydration")]
-        if self.in_hydration {
-            self.in_hydration = false;
-            self.dirty = false;
+        if scratch.in_hydration {
+            scratch.class.dirty = false;
+            return;
         }
 
-        if self.dirty {
-            self.dirty = false;
-            self.classes.clear();
-            for modifier in &self.class_modifiers {
+        if scratch.class.dirty {
+            scratch.class.dirty = false;
+            scratch.class.classes.clear();
+            for modifier in &self.modifiers {
                 match modifier {
                     ClassModifier::Remove(class_name) => {
-                        self.classes.remove(class_name);
+                        scratch.class.classes.remove(class_name);
                     }
                     ClassModifier::Add(class_name) => {
-                        self.classes.insert(class_name.clone(), ());
+                        scratch.class.classes.insert(class_name.clone(), ());
                     }
                     ClassModifier::EndMarker(_) => (),
                 }
             }
             // intersperse would be the right way to do this, but avoid extra dependencies just for this (and otherwise it's unstable in std)...
-            self.class_name.clear();
-            let last_idx = self.classes.len().saturating_sub(1);
-            for (idx, class) in self.classes.keys().enumerate() {
-                self.class_name += class;
+            scratch.class.class_name.clear();
+            let last_idx = scratch.class.classes.len().saturating_sub(1);
+            let scratch = &mut *scratch; // help the borrow-checker
+            for (idx, class) in scratch.class.classes.keys().enumerate() {
+                scratch.class.class_name += class;
                 if idx != last_idx {
-                    self.class_name += " ";
+                    scratch.class.class_name += " ";
                 }
             }
             // Svg elements do have issues with className, see https://developer.mozilla.org/en-US/docs/Web/API/Element/className
             if element.dyn_ref::<web_sys::SvgElement>().is_some() {
                 element
-                    .set_attribute("class", &self.class_name)
+                    .set_attribute("class", &scratch.class.class_name)
                     .unwrap_throw();
             } else {
-                element.set_class_name(&self.class_name);
+                element.set_class_name(&scratch.class.class_name);
             }
         }
     }
@@ -163,7 +174,8 @@ impl WithClasses for Classes {
         if self.idx == 0 {
             self.start_idx = 0;
         } else {
-            let ClassModifier::EndMarker(start_idx) = self.class_modifiers[self.idx - 1] else {
+            let ClassModifier::EndMarker(start_idx) = self.modifiers[(self.idx - 1) as usize]
+            else {
                 unreachable!("this should not happen, as either `rebuild_class_modifier` is happens first, or follows an `mark_end_of_class_modifier`")
             };
             self.idx = start_idx;
@@ -172,15 +184,15 @@ impl WithClasses for Classes {
     }
 
     fn mark_end_of_class_modifier(&mut self) {
-        match self.class_modifiers.get_mut(self.idx) {
-            Some(ClassModifier::EndMarker(_)) if !self.dirty => (), // class modifier hasn't changed
+        match self.modifiers.get_mut(self.idx as usize) {
+            Some(ClassModifier::EndMarker(idx)) if *idx == self.start_idx => (),
             Some(modifier) => {
-                self.dirty = true;
+                self.scratch.borrow_mut().class.dirty = true;
                 *modifier = ClassModifier::EndMarker(self.start_idx);
             }
             None => {
-                self.dirty = true;
-                self.class_modifiers
+                self.scratch.borrow_mut().class.dirty = true;
+                self.modifiers
                     .push(ClassModifier::EndMarker(self.start_idx));
             }
         }
@@ -189,15 +201,15 @@ impl WithClasses for Classes {
     }
 
     fn add_class(&mut self, class_name: CowStr) {
-        match self.class_modifiers.get_mut(self.idx) {
+        match self.modifiers.get_mut(self.idx as usize) {
             Some(ClassModifier::Add(class)) if class == &class_name => (), // class modifier hasn't changed
             Some(modifier) => {
-                self.dirty = true;
+                self.scratch.borrow_mut().class.dirty = true;
                 *modifier = ClassModifier::Add(class_name);
             }
             None => {
-                self.dirty = true;
-                self.class_modifiers.push(ClassModifier::Add(class_name));
+                self.scratch.borrow_mut().class.dirty = true;
+                self.modifiers.push(ClassModifier::Add(class_name));
             }
         }
         self.idx += 1;
@@ -205,15 +217,15 @@ impl WithClasses for Classes {
 
     fn remove_class(&mut self, class_name: CowStr) {
         // Same code as add_class but with remove...
-        match self.class_modifiers.get_mut(self.idx) {
+        match self.modifiers.get_mut(self.idx as usize) {
             Some(ClassModifier::Remove(class)) if class == &class_name => (), // class modifier hasn't changed
             Some(modifier) => {
-                self.dirty = true;
+                self.scratch.borrow_mut().class.dirty = true;
                 *modifier = ClassModifier::Remove(class_name);
             }
             None => {
-                self.dirty = true;
-                self.class_modifiers.push(ClassModifier::Remove(class_name));
+                self.scratch.borrow_mut().class.dirty = true;
+                self.modifiers.push(ClassModifier::Remove(class_name));
             }
         }
         self.idx += 1;
@@ -315,8 +327,10 @@ where
     type ViewState = E::ViewState;
 
     fn build(&self, ctx: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
+        let class_iter = self.classes.class_iter();
+        ctx.add_modifier_size_hint::<Classes>(class_iter.size_hint().0);
         let (mut e, s) = self.el.build(ctx);
-        for class in self.classes.class_iter() {
+        for class in class_iter {
             e.add_class(class);
         }
         e.mark_end_of_class_modifier();

@@ -19,9 +19,10 @@ impl<State: 'static, Action: 'static> OrphanView<Line, State, Action, DynMessage
 
     fn orphan_build(
         view: &Line,
-        _ctx: &mut ViewCtx,
+        ctx: &mut ViewCtx,
     ) -> (Self::OrphanElement, Self::OrphanViewState) {
-        let mut element: Self::OrphanElement = Pod::new_element(Vec::new(), SVG_NS, "line").into();
+        let mut element: Self::OrphanElement =
+            Pod::new_element(Vec::new(), SVG_NS, "line", ctx).into();
         element.set_attribute("x1".into(), view.p0.x.into_attr_value());
         element.set_attribute("y1".into(), view.p0.y.into_attr_value());
         element.set_attribute("x2".into(), view.p1.x.into_attr_value());
@@ -71,9 +72,10 @@ impl<State: 'static, Action: 'static> OrphanView<Rect, State, Action, DynMessage
 
     fn orphan_build(
         view: &Rect,
-        _ctx: &mut ViewCtx,
+        ctx: &mut ViewCtx,
     ) -> (Self::OrphanElement, Self::OrphanViewState) {
-        let mut element: Self::OrphanElement = Pod::new_element(Vec::new(), SVG_NS, "rect").into();
+        let mut element: Self::OrphanElement =
+            Pod::new_element(Vec::new(), SVG_NS, "rect", ctx).into();
         element.set_attribute("x".into(), view.x0.into_attr_value());
         element.set_attribute("y".into(), view.y0.into_attr_value());
         element.set_attribute("width".into(), view.width().into_attr_value());
@@ -123,10 +125,10 @@ impl<State: 'static, Action: 'static> OrphanView<Circle, State, Action, DynMessa
 
     fn orphan_build(
         view: &Circle,
-        _ctx: &mut ViewCtx,
+        ctx: &mut ViewCtx,
     ) -> (Self::OrphanElement, Self::OrphanViewState) {
         let mut element: Self::OrphanElement =
-            Pod::new_element(Vec::new(), SVG_NS, "circle").into();
+            Pod::new_element(Vec::new(), SVG_NS, "circle", ctx).into();
         element.set_attribute("cx".into(), view.center.x.into_attr_value());
         element.set_attribute("cy".into(), view.center.y.into_attr_value());
         element.set_attribute("r".into(), view.radius.into_attr_value());
@@ -174,9 +176,10 @@ impl<State: 'static, Action: 'static> OrphanView<BezPath, State, Action, DynMess
 
     fn orphan_build(
         view: &BezPath,
-        _ctx: &mut ViewCtx,
+        ctx: &mut ViewCtx,
     ) -> (Self::OrphanElement, Self::OrphanViewState) {
-        let mut element: Self::OrphanElement = Pod::new_element(Vec::new(), SVG_NS, "path").into();
+        let mut element: Self::OrphanElement =
+            Pod::new_element(Vec::new(), SVG_NS, "path", ctx).into();
         let svg_repr = Cow::from(view.to_svg());
         element.set_attribute("d".into(), svg_repr.clone().into_attr_value());
         element.mark_end_of_attribute_modifier();

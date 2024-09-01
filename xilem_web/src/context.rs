@@ -5,11 +5,12 @@
 use crate::vecmap::VecMap;
 #[cfg(feature = "hydration")]
 use std::any::{Any, TypeId};
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     app::{AppMessage, AppRunner},
     core::{ViewId, ViewPathTracker},
+    element_props::ElementScratch,
     Message,
 };
 
@@ -46,6 +47,9 @@ pub struct ViewCtx {
     is_hydrating: bool,
     #[cfg(feature = "hydration")]
     pub(crate) templates: VecMap<TypeId, (web_sys::Node, Rc<dyn Any>)>,
+    modifier_size_hints: VecMap<TypeId, usize>,
+
+    pub(crate) element_scratch: Rc<RefCell<ElementScratch>>,
 }
 
 impl Default for ViewCtx {
@@ -60,6 +64,8 @@ impl Default for ViewCtx {
             hydration_node_stack: Default::default(),
             #[cfg(feature = "hydration")]
             is_hydrating: false,
+            modifier_size_hints: Default::default(),
+            element_scratch: Default::default(),
         }
     }
 }
@@ -84,11 +90,13 @@ impl ViewCtx {
     #[cfg(feature = "hydration")]
     pub(crate) fn enable_hydration(&mut self) {
         self.is_hydrating = true;
+        self.element_scratch.borrow_mut().in_hydration = true;
     }
 
     #[cfg(feature = "hydration")]
     pub(crate) fn disable_hydration(&mut self) {
         self.is_hydrating = false;
+        self.element_scratch.borrow_mut().in_hydration = false;
     }
 
     #[cfg(feature = "hydration")]
@@ -114,6 +122,23 @@ impl ViewCtx {
             self.hydration_node_stack.push(next_child);
         }
         Some(node)
+    }
+
+    pub fn add_modifier_size_hint<T: 'static>(&mut self, request_size: usize) {
+        let id = TypeId::of::<T>();
+        match self.modifier_size_hints.get_mut(&id) {
+            Some(hint) => *hint += request_size + 1, // + 1 because of the marker
+            None => {
+                self.modifier_size_hints.insert(id, request_size + 1);
+            }
+        };
+    }
+
+    pub fn modifier_size_hint<T: 'static>(&mut self) -> usize {
+        match self.modifier_size_hints.get_mut(&TypeId::of::<T>()) {
+            Some(hint) => std::mem::take(hint),
+            None => 0,
+        }
     }
 }
 

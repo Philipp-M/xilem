@@ -1,12 +1,13 @@
 // Copyright 2024 the Xilem Authors
 // SPDX-License-Identifier: Apache-2.0
 
-use std::marker::PhantomData;
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{MessageResult, Mut, View, ViewElement, ViewId, ViewMarker};
 
 use crate::{
-    vecmap::VecMap, AttributeValue, DomNode, DynMessage, ElementProps, Pod, PodMut, ViewCtx,
+    element_props::ElementScratch, vecmap::VecMap, AttributeValue, DomNode, DynMessage,
+    ElementProps, Pod, PodMut, ViewCtx,
 };
 
 type CowStr = std::borrow::Cow<'static, str>;
@@ -36,26 +37,32 @@ pub trait WithAttributes {
 enum AttributeModifier {
     Remove(CowStr),
     Set(CowStr, AttributeValue),
-    EndMarker(usize),
+    EndMarker(u16),
+}
+
+/// A shared storage, which is temporarily used for updating attributes on an element
+#[derive(Debug, Default)]
+pub struct AttributeScratch {
+    updated: VecMap<CowStr, ()>,
 }
 
 /// This contains all the current attributes of an [`Element`](`crate::interfaces::Element`)
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Attributes {
-    attribute_modifiers: Vec<AttributeModifier>,
-    updated_attributes: VecMap<CowStr, ()>,
-    idx: usize, // To save some memory, this could be u16 or even u8 (but this is risky)
-    start_idx: usize, // same here
-    #[cfg(feature = "hydration")]
-    pub(crate) in_hydration: bool,
+    modifiers: Vec<AttributeModifier>,
+    scratch: Rc<RefCell<ElementScratch>>,
+    idx: u16,
+    start_idx: u16,
 }
 
 #[cfg(feature = "hydration")]
 impl Attributes {
-    pub(crate) fn new(in_hydration: bool) -> Self {
+    pub(crate) fn new(scratch: Rc<RefCell<ElementScratch>>, capacity: usize) -> Self {
         Self {
-            in_hydration,
-            ..Default::default()
+            scratch,
+            modifiers: Vec::with_capacity(capacity),
+            idx: 0,
+            start_idx: 0,
         }
     }
 }
@@ -116,34 +123,44 @@ fn remove_attribute(element: &web_sys::Element, name: &str) {
 impl Attributes {
     /// applies potential changes of the attributes of an element to the underlying DOM node
     pub fn apply_attribute_changes(&mut self, element: &web_sys::Element) {
+        let mut scratch = self.scratch.borrow_mut();
         #[cfg(feature = "hydration")]
-        if self.in_hydration {
-            self.updated_attributes.clear();
-            self.in_hydration = false;
+        if scratch.in_hydration {
+            debug_assert!(scratch.attributes.updated.is_empty());
             return;
         }
 
-        if !self.updated_attributes.is_empty() {
-            for modifier in self.attribute_modifiers.iter().rev() {
+        // optimization to avoid unnecessary work
+        if scratch.was_created {
+            debug_assert!(scratch.attributes.updated.is_empty());
+            for modifier in self.modifiers.iter() {
                 match modifier {
                     AttributeModifier::Remove(name) => {
-                        if self.updated_attributes.contains_key(name) {
-                            self.updated_attributes.remove(name);
+                        remove_attribute(element, name);
+                    }
+                    AttributeModifier::Set(name, value) => {
+                        set_attribute(element, name, &value.serialize());
+                    }
+                    AttributeModifier::EndMarker(_) => (),
+                }
+            }
+        } else if !scratch.attributes.updated.is_empty() {
+            for modifier in self.modifiers.iter().rev() {
+                match modifier {
+                    AttributeModifier::Remove(name) => {
+                        if scratch.attributes.updated.remove(name).is_some() {
                             remove_attribute(element, name);
-                            // element.remove_attribute(name);
                         }
                     }
                     AttributeModifier::Set(name, value) => {
-                        if self.updated_attributes.contains_key(name) {
-                            self.updated_attributes.remove(name);
+                        if scratch.attributes.updated.remove(name).is_some() {
                             set_attribute(element, name, &value.serialize());
-                            // element.set_attribute(name, &value.serialize());
                         }
                     }
                     AttributeModifier::EndMarker(_) => (),
                 }
             }
-            debug_assert!(self.updated_attributes.is_empty());
+            debug_assert!(scratch.attributes.updated.is_empty());
         }
     }
 }
@@ -156,22 +173,25 @@ impl WithAttributes for Attributes {
             AttributeModifier::Remove(name.clone())
         };
 
-        if let Some(modifier) = self.attribute_modifiers.get_mut(self.idx) {
+        let mut scratch = self.scratch.borrow_mut();
+        if scratch.was_initialized() {
+            self.modifiers.push(new_modifier);
+        } else if let Some(modifier) = self.modifiers.get_mut(self.idx as usize) {
             if modifier != &new_modifier {
                 if let AttributeModifier::Remove(previous_name)
                 | AttributeModifier::Set(previous_name, _) = modifier
                 {
                     if &name != previous_name {
-                        self.updated_attributes.insert(previous_name.clone(), ());
+                        scratch.attributes.updated.insert(previous_name.clone(), ());
                     }
                 }
-                self.updated_attributes.insert(name, ());
+                scratch.attributes.updated.insert(name, ());
                 *modifier = new_modifier;
             }
-            // else remove it out of updated_attributes? (because previous attributes are overwritten) not sure if worth it because potentially worse perf
+            // else remove it out of scratch.attributes.updated? (because previous attributes are overwritten) not sure if worth it because potentially worse perf
         } else {
-            self.updated_attributes.insert(name, ());
-            self.attribute_modifiers.push(new_modifier);
+            scratch.attributes.updated.insert(name, ());
+            self.modifiers.push(new_modifier);
         }
         self.idx += 1;
     }
@@ -180,7 +200,7 @@ impl WithAttributes for Attributes {
         if self.idx == 0 {
             self.start_idx = 0;
         } else {
-            let AttributeModifier::EndMarker(start_idx) = self.attribute_modifiers[self.idx - 1]
+            let AttributeModifier::EndMarker(start_idx) = self.modifiers[(self.idx - 1) as usize]
             else {
                 unreachable!("this should not happen, as either `rebuild_attribute_modifier` happens first, or follows an `mark_end_of_attribute_modifier`")
             };
@@ -190,14 +210,14 @@ impl WithAttributes for Attributes {
     }
 
     fn mark_end_of_attribute_modifier(&mut self) {
-        match self.attribute_modifiers.get_mut(self.idx) {
+        match self.modifiers.get_mut(self.idx as usize) {
             Some(AttributeModifier::EndMarker(prev_start_idx))
                 if *prev_start_idx == self.start_idx => {} // attribute modifier hasn't changed
             Some(modifier) => {
                 *modifier = AttributeModifier::EndMarker(self.start_idx);
             }
             None => {
-                self.attribute_modifiers
+                self.modifiers
                     .push(AttributeModifier::EndMarker(self.start_idx));
             }
         }
@@ -293,6 +313,7 @@ where
     type ViewState = E::ViewState;
 
     fn build(&self, ctx: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
+        ctx.add_modifier_size_hint::<Attributes>(1);
         let (mut element, state) = self.el.build(ctx);
         element.set_attribute(self.name.clone(), self.value.clone());
         element.mark_end_of_attribute_modifier();

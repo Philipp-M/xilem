@@ -2,13 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, HashMap},
     marker::PhantomData,
+    rc::Rc,
 };
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 use xilem_core::{MessageResult, Mut, View, ViewElement, ViewId, ViewMarker};
 
-use crate::{vecmap::VecMap, DomNode, DynMessage, ElementProps, Pod, PodMut, ViewCtx};
+use crate::{
+    element_props::ElementScratch, vecmap::VecMap, DomNode, DynMessage, ElementProps, Pod, PodMut,
+    ViewCtx,
+};
 
 type CowStr = std::borrow::Cow<'static, str>;
 
@@ -130,26 +135,32 @@ pub trait WithStyle {
 enum StyleModifier {
     Remove(CowStr),
     Set(CowStr, CowStr),
-    EndMarker(usize),
+    EndMarker(u16),
+}
+
+#[derive(Debug, Default)]
+/// A shared storage, which is temporarily used for updating styles on an element
+pub struct StyleScratch {
+    updated: VecMap<CowStr, ()>,
 }
 
 #[derive(Debug, Default)]
 /// This contains all the current style properties of an [`HtmlElement`](`crate::interfaces::Element`) or [`SvgElement`](`crate::interfaces::SvgElement`).
 pub struct Styles {
-    style_modifiers: Vec<StyleModifier>,
-    updated_styles: VecMap<CowStr, ()>,
-    idx: usize, // To save some memory, this could be u16 or even u8 (but this is risky)
-    start_idx: usize, // same here
-    #[cfg(feature = "hydration")]
-    pub(crate) in_hydration: bool,
+    modifiers: Vec<StyleModifier>,
+    scratch: Rc<RefCell<ElementScratch>>,
+    idx: u16,
+    start_idx: u16,
 }
 
 #[cfg(feature = "hydration")]
 impl Styles {
-    pub(crate) fn new(in_hydration: bool) -> Self {
+    pub(crate) fn new(scratch: Rc<RefCell<ElementScratch>>, capacity: usize) -> Self {
         Self {
-            in_hydration,
-            ..Default::default()
+            scratch,
+            modifiers: Vec::with_capacity(capacity),
+            idx: 0,
+            start_idx: 0,
         }
     }
 }
@@ -172,32 +183,44 @@ fn remove_style(element: &web_sys::Element, name: &str) {
 
 impl Styles {
     pub fn apply_style_changes(&mut self, element: &web_sys::Element) {
+        let mut scratch = self.scratch.borrow_mut();
         #[cfg(feature = "hydration")]
-        if self.in_hydration {
-            self.updated_styles.clear();
-            self.in_hydration = false;
+        if scratch.in_hydration {
+            debug_assert!(scratch.styles.updated.is_empty());
             return;
         }
 
-        if !self.updated_styles.is_empty() {
-            for modifier in self.style_modifiers.iter().rev() {
+        // optimization to avoid unnecessary work
+        if scratch.was_created {
+            debug_assert!(scratch.styles.updated.is_empty());
+            for modifier in self.modifiers.iter() {
                 match modifier {
                     StyleModifier::Remove(name) => {
-                        if self.updated_styles.contains_key(name) {
-                            self.updated_styles.remove(name);
+                        remove_style(element, name);
+                    }
+                    StyleModifier::Set(name, value) => {
+                        set_style(element, name, value);
+                    }
+                    StyleModifier::EndMarker(_) => (),
+                }
+            }
+        } else if !scratch.styles.updated.is_empty() {
+            for modifier in self.modifiers.iter().rev() {
+                match modifier {
+                    StyleModifier::Remove(name) => {
+                        if scratch.styles.updated.remove(name).is_some() {
                             remove_style(element, name);
                         }
                     }
                     StyleModifier::Set(name, value) => {
-                        if self.updated_styles.contains_key(name) {
-                            self.updated_styles.remove(name);
+                        if scratch.styles.updated.remove(name).is_some() {
                             set_style(element, name, value);
                         }
                     }
                     StyleModifier::EndMarker(_) => (),
                 }
             }
-            debug_assert!(self.updated_styles.is_empty());
+            debug_assert!(scratch.styles.updated.is_empty());
         }
     }
 }
@@ -210,22 +233,25 @@ impl WithStyle for Styles {
             StyleModifier::Remove(name.clone())
         };
 
-        if let Some(modifier) = self.style_modifiers.get_mut(self.idx) {
+        let mut scratch = self.scratch.borrow_mut();
+        if scratch.was_initialized() {
+            self.modifiers.push(new_modifier);
+        } else if let Some(modifier) = self.modifiers.get_mut(self.idx as usize) {
             if modifier != &new_modifier {
                 if let StyleModifier::Remove(previous_name) | StyleModifier::Set(previous_name, _) =
                     modifier
                 {
                     if &name != previous_name {
-                        self.updated_styles.insert(previous_name.clone(), ());
+                        scratch.styles.updated.insert(previous_name.clone(), ());
                     }
                 }
-                self.updated_styles.insert(name, ());
+                scratch.styles.updated.insert(name, ());
                 *modifier = new_modifier;
             }
             // else remove it out of updated_styles? (because previous styles are overwritten) not sure if worth it because potentially worse perf
         } else {
-            self.updated_styles.insert(name, ());
-            self.style_modifiers.push(new_modifier);
+            scratch.styles.updated.insert(name, ());
+            self.modifiers.push(new_modifier);
         }
         self.idx += 1;
     }
@@ -234,7 +260,8 @@ impl WithStyle for Styles {
         if self.idx == 0 {
             self.start_idx = 0;
         } else {
-            let StyleModifier::EndMarker(start_idx) = self.style_modifiers[self.idx - 1] else {
+            let StyleModifier::EndMarker(start_idx) = self.modifiers[(self.idx - 1) as usize]
+            else {
                 unreachable!("this should not happen, as either `rebuild_style_modifier` happens first, or follows an `mark_end_of_style_modifier`")
             };
             self.idx = start_idx;
@@ -243,14 +270,14 @@ impl WithStyle for Styles {
     }
 
     fn mark_end_of_style_modifier(&mut self) {
-        match self.style_modifiers.get_mut(self.idx) {
+        match self.modifiers.get_mut(self.idx as usize) {
             Some(StyleModifier::EndMarker(prev_start_idx)) if *prev_start_idx == self.start_idx => {
             } // class modifier hasn't changed
             Some(modifier) => {
                 *modifier = StyleModifier::EndMarker(self.start_idx);
             }
             None => {
-                self.style_modifiers
+                self.modifiers
                     .push(StyleModifier::EndMarker(self.start_idx));
             }
         }
@@ -341,6 +368,7 @@ where
     type ViewState = E::ViewState;
 
     fn build(&self, ctx: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
+        ctx.add_modifier_size_hint::<Styles>(self.styles.len());
         let (mut element, state) = self.el.build(ctx);
         for (key, value) in &self.styles {
             element.set_style(key.clone(), Some(value.clone()));

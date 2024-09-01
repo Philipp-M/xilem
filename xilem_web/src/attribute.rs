@@ -40,7 +40,7 @@ enum AttributeModifier {
 }
 
 /// This contains all the current attributes of an [`Element`](`crate::interfaces::Element`)
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Attributes {
     attribute_modifiers: Vec<AttributeModifier>,
     updated_attributes: VecMap<CowStr, ()>,
@@ -48,6 +48,20 @@ pub struct Attributes {
     start_idx: usize, // same here
     #[cfg(feature = "hydration")]
     pub(crate) in_hydration: bool,
+    pub(crate) was_created: bool,
+}
+
+impl Default for Attributes {
+    fn default() -> Self {
+        Attributes {
+            attribute_modifiers: Default::default(),
+            updated_attributes: Default::default(),
+            idx: 0,
+            start_idx: 0,
+            in_hydration: false,
+            was_created: true,
+        }
+    }
 }
 
 #[cfg(feature = "hydration")]
@@ -123,7 +137,21 @@ impl Attributes {
             return;
         }
 
-        if !self.updated_attributes.is_empty() {
+        if self.was_created {
+            self.was_created = false;
+            debug_assert!(self.updated_attributes.is_empty());
+            for modifier in self.attribute_modifiers.iter() {
+                match modifier {
+                    AttributeModifier::Remove(name) => {
+                        remove_attribute(element, name);
+                    }
+                    AttributeModifier::Set(name, value) => {
+                        set_attribute(element, name, &value.serialize());
+                    }
+                    AttributeModifier::EndMarker(_) => (),
+                }
+            }
+        } else if !self.updated_attributes.is_empty() {
             for modifier in self.attribute_modifiers.iter().rev() {
                 match modifier {
                     AttributeModifier::Remove(name) => {

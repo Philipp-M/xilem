@@ -126,19 +126,25 @@ impl Classes {
         if self.dirty {
             self.dirty = false;
             self.classes.clear();
+            self.classes
+                .reserve(self.class_modifiers.len().saturating_sub(1)); // -1 because of marker
+            let mut estimated_capacity = 0;
             for modifier in &self.class_modifiers {
                 match modifier {
                     ClassModifier::Remove(class_name) => {
                         self.classes.remove(class_name);
                     }
                     ClassModifier::Add(class_name) => {
-                        self.classes.insert(class_name.clone(), ());
+                        if self.classes.insert(class_name.clone(), ()).is_none() {
+                            estimated_capacity += class_name.len() + 1;
+                        }
                     }
                     ClassModifier::EndMarker(_) => (),
                 }
             }
             // intersperse would be the right way to do this, but avoid extra dependencies just for this (and otherwise it's unstable in std)...
             self.class_name.clear();
+            self.class_name.reserve(estimated_capacity);
             let last_idx = self.classes.len().saturating_sub(1);
             for (idx, class) in self.classes.keys().enumerate() {
                 self.class_name += class;

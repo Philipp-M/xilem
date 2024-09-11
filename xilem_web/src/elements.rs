@@ -147,9 +147,13 @@ impl<'a, 'b, 'c, 'd> DomChildrenSplice<'a, 'b, 'c, 'd> {
     }
 }
 
-impl ElementSplice<AnyPod> for DomChildrenSplice<'_, '_, '_, '_> {
-    fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<AnyPod>) -> R) -> R {
-        let ret = f(self.scratch);
+impl ElementSplice<AnyPod, ViewCtx> for DomChildrenSplice<'_, '_, '_, '_> {
+    fn with_scratch<R>(
+        &mut self,
+        ctx: &mut ViewCtx,
+        f: impl FnOnce(&mut ViewCtx, &mut AppendVec<AnyPod>) -> R,
+    ) -> R {
+        let ret = f(ctx, self.scratch);
         if !self.scratch.is_empty() {
             let add_dom_children_to_parent = !self.in_hydration;
 
@@ -174,7 +178,7 @@ impl ElementSplice<AnyPod> for DomChildrenSplice<'_, '_, '_, '_> {
         ret
     }
 
-    fn insert(&mut self, element: AnyPod) {
+    fn insert(&mut self, _ctx: &mut ViewCtx, element: AnyPod) {
         self.parent
             .insert_before(
                 element.node.as_ref(),
@@ -185,26 +189,34 @@ impl ElementSplice<AnyPod> for DomChildrenSplice<'_, '_, '_, '_> {
         self.children.insert(element);
     }
 
-    fn mutate<R>(&mut self, f: impl FnOnce(Mut<AnyPod>) -> R) -> R {
+    fn mutate<R>(
+        &mut self,
+        ctx: &mut ViewCtx,
+        f: impl FnOnce(&mut ViewCtx, Mut<AnyPod>) -> R,
+    ) -> R {
         let child = self.children.mutate();
-        let ret = f(child.as_mut(self.parent, self.parent_was_removed));
+        let ret = f(ctx, child.as_mut(self.parent, self.parent_was_removed));
         self.ix += 1;
         ret
     }
 
-    fn skip(&mut self, n: usize) {
+    fn skip(&mut self, _ctx: &mut ViewCtx, n: usize) {
         self.children.skip(n);
         self.ix += n;
     }
 
-    fn delete<R>(&mut self, f: impl FnOnce(Mut<AnyPod>) -> R) -> R {
+    fn delete<R>(
+        &mut self,
+        ctx: &mut ViewCtx,
+        f: impl FnOnce(&mut ViewCtx, Mut<AnyPod>) -> R,
+    ) -> R {
         let mut child = self.children.delete_next();
         let child = child.as_mut(self.parent, true);
         // This is an optimization to avoid too much DOM traffic, otherwise first the children would be deleted from that node in an up-traversal
         if !self.parent_was_removed {
             self.parent.remove_child(child.as_ref()).ok().unwrap_throw();
         }
-        f(child)
+        f(ctx, child)
     }
 }
 

@@ -100,7 +100,7 @@ where
         prev: &Self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     );
 
     /// Update the associated widgets.
@@ -108,7 +108,7 @@ where
         &self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     );
 
     /// Propagate a message.
@@ -126,20 +126,32 @@ where
 
 /// A temporary "splice" to add, update and delete in an (ordered) sequence of elements.
 /// It is mainly intended for view sequences.
-pub trait ElementSplice<Element: ViewElement> {
+pub trait ElementSplice<Element: ViewElement, Context> {
     /// Run a function with access to the associated [`AppendVec`].
     ///
     /// Each element [pushed](AppendVec::push) to the provided vector will be logically
     /// [inserted](ElementSplice::insert) into `self`.
-    fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<Element>) -> R) -> R;
+    fn with_scratch<R>(
+        &mut self,
+        ctx: &mut Context,
+        f: impl FnOnce(&mut Context, &mut AppendVec<Element>) -> R,
+    ) -> R;
     /// Insert a new element at the current index in the resulting collection.
-    fn insert(&mut self, element: Element);
+    fn insert(&mut self, ctx: &mut Context, element: Element);
     /// Mutate the next existing element.
-    fn mutate<R>(&mut self, f: impl FnOnce(Element::Mut<'_>) -> R) -> R;
+    fn mutate<R>(
+        &mut self,
+        ctx: &mut Context,
+        f: impl FnOnce(&mut Context, Element::Mut<'_>) -> R,
+    ) -> R;
     /// Don't make any changes to the next n existing elements.
-    fn skip(&mut self, n: usize);
+    fn skip(&mut self, ctx: &mut Context, n: usize);
     /// Delete the next existing element, after running a function on it.
-    fn delete<R>(&mut self, f: impl FnOnce(Element::Mut<'_>) -> R) -> R;
+    fn delete<R>(
+        &mut self,
+        ctx: &mut Context,
+        f: impl FnOnce(&mut Context, Element::Mut<'_>) -> R,
+    ) -> R;
 }
 
 impl<State, Action, Context, V, Element, Message>
@@ -162,10 +174,10 @@ where
         prev: &Self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
         // Mutate the item we added in `seq_build`
-        elements.mutate(|this_element| {
+        elements.mutate(ctx, |ctx, this_element| {
             Element::with_downcast(ctx, this_element, |ctx, element| {
                 self.rebuild(prev, seq_state, ctx, element);
             });
@@ -175,9 +187,9 @@ where
         &self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
-        elements.delete(|this_element| {
+        elements.delete(ctx, |ctx, this_element| {
             Element::with_downcast(ctx, this_element, |ctx, element| {
                 self.teardown(seq_state, ctx, element);
             });
@@ -251,7 +263,7 @@ where
         prev: &Self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
         // If `prev` was `Some`, we set `seq_state` in reacting to it (and building the inner view)
         // This could only fail if some malicious parent view was messing with our internal state
@@ -275,7 +287,7 @@ where
                 // The sequence is newly re-added, build the inner sequence
                 // We don't increment the generation here, as that was already done in the below case
                 let inner_state = ctx.with_id(ViewId::new(seq_state.generation), |ctx| {
-                    elements.with_scratch(|elements| seq.seq_build(ctx, elements))
+                    elements.with_scratch(ctx, |ctx, elements| seq.seq_build(ctx, elements))
                 });
                 seq_state.inner = Some(inner_state);
             }
@@ -303,7 +315,7 @@ where
         &self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
         assert_eq!(
             self.is_some(),
@@ -423,7 +435,7 @@ where
         prev: &Self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
         for (i, (((child, child_prev), child_state), child_generation)) in self
             .iter()
@@ -485,7 +497,7 @@ where
         } else if n > prev_n {
             // If needed, create new generations
             seq_state.generations.resize(n, 0);
-            elements.with_scratch(|elements| {
+            elements.with_scratch(ctx, |ctx, elements| {
                 seq_state.inner_states.extend(
                     self[prev_n..]
                         .iter()
@@ -505,7 +517,7 @@ where
         &self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
         for (index, ((seq, state), generation)) in self
             .iter()
@@ -567,7 +579,7 @@ where
         prev: &Self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
         for (idx, ((seq, prev_seq), state)) in self.iter().zip(prev).zip(seq_state).enumerate() {
             ctx.with_id(
@@ -604,7 +616,7 @@ where
         &self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
         for (idx, (seq, state)) in self.iter().zip(seq_state).enumerate() {
             ctx.with_id(
@@ -634,7 +646,7 @@ where
         _: &Self,
         _: &mut Self::SeqState,
         _: &mut Context,
-        _: &mut impl ElementSplice<Element>,
+        _: &mut impl ElementSplice<Element, Context>,
     ) {
     }
 
@@ -642,7 +654,7 @@ where
         &self,
         _seq_state: &mut Self::SeqState,
         _ctx: &mut Context,
-        _elements: &mut impl ElementSplice<Element>,
+        _elements: &mut impl ElementSplice<Element, Context>,
     ) {
     }
 
@@ -676,7 +688,7 @@ where
         prev: &Self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
         self.0.seq_rebuild(&prev.0, seq_state, ctx, elements);
     }
@@ -685,7 +697,7 @@ where
         &self,
         seq_state: &mut Self::SeqState,
         ctx: &mut Context,
-        elements: &mut impl ElementSplice<Element>,
+        elements: &mut impl ElementSplice<Element, Context>,
     ) {
         self.0.seq_teardown(seq_state, ctx, elements);
     }
@@ -736,7 +748,7 @@ macro_rules! impl_view_tuple {
                 prev: &Self,
                 seq_state: &mut Self::SeqState,
                 ctx: &mut Context,
-                elements: &mut impl ElementSplice<Element>,
+                elements: &mut impl ElementSplice<Element, Context>,
             ) {
                 $(
                     ctx.with_id(ViewId::new($idx), |ctx| {
@@ -749,7 +761,7 @@ macro_rules! impl_view_tuple {
                 &self,
                 seq_state: &mut Self::SeqState,
                 ctx: &mut Context,
-                elements: &mut impl ElementSplice<Element>,
+                elements: &mut impl ElementSplice<Element, Context>,
             ) {
                 $(
                     ctx.with_id(ViewId::new($idx), |ctx| {

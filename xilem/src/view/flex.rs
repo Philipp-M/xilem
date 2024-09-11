@@ -242,8 +242,8 @@ impl<W: Widget> SuperElement<Pod<W>, ViewCtx> for FlexElement {
     }
 }
 
-impl ElementSplice<FlexElement> for FlexSplice<'_> {
-    fn insert(&mut self, element: FlexElement) {
+impl ElementSplice<FlexElement, ViewCtx> for FlexSplice<'_> {
+    fn insert(&mut self, _ctx: &mut ViewCtx, element: FlexElement) {
         match element {
             FlexElement::Child(child, params) => {
                 widget::Flex::insert_flex_child_pod(
@@ -263,8 +263,12 @@ impl ElementSplice<FlexElement> for FlexSplice<'_> {
         self.idx += 1;
     }
 
-    fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<FlexElement>) -> R) -> R {
-        let ret = f(&mut self.scratch);
+    fn with_scratch<R>(
+        &mut self,
+        ctx: &mut ViewCtx,
+        f: impl FnOnce(&mut ViewCtx, &mut AppendVec<FlexElement>) -> R,
+    ) -> R {
+        let ret = f(ctx, &mut self.scratch);
         for element in self.scratch.drain() {
             match element {
                 FlexElement::Child(child, params) => {
@@ -287,29 +291,37 @@ impl ElementSplice<FlexElement> for FlexSplice<'_> {
         ret
     }
 
-    fn mutate<R>(&mut self, f: impl FnOnce(Mut<FlexElement>) -> R) -> R {
+    fn mutate<R>(
+        &mut self,
+        ctx: &mut ViewCtx,
+        f: impl FnOnce(&mut ViewCtx, Mut<FlexElement>) -> R,
+    ) -> R {
         let child = FlexElementMut {
             parent: self.element.reborrow_mut(),
             idx: self.idx,
         };
-        let ret = f(child);
+        let ret = f(ctx, child);
         self.idx += 1;
         ret
     }
 
-    fn delete<R>(&mut self, f: impl FnOnce(Mut<FlexElement>) -> R) -> R {
+    fn delete<R>(
+        &mut self,
+        ctx: &mut ViewCtx,
+        f: impl FnOnce(&mut ViewCtx, Mut<FlexElement>) -> R,
+    ) -> R {
         let ret = {
             let child = FlexElementMut {
                 parent: self.element.reborrow_mut(),
                 idx: self.idx,
             };
-            f(child)
+            f(ctx, child)
         };
         widget::Flex::remove_child(&mut self.element, self.idx);
         ret
     }
 
-    fn skip(&mut self, n: usize) {
+    fn skip(&mut self, _ctx: &mut ViewCtx, n: usize) {
         self.idx += n;
     }
 }

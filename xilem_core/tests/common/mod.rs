@@ -215,17 +215,22 @@ impl SuperElement<TestElement, TestCtx> for TestElement {
         child
     }
 
-    fn with_downcast_val<R>(
-        this: Self::Mut<'_>,
-        f: impl FnOnce(Mut<'_, TestElement>) -> R,
-    ) -> (Self::Mut<'_>, R) {
-        let ret = f(this);
+    fn with_downcast_val<'a, R>(
+        ctx: &mut TestCtx,
+        this: Self::Mut<'a>,
+        f: impl FnOnce(&mut TestCtx, Mut<'_, TestElement>) -> R,
+    ) -> (Self::Mut<'a>, R) {
+        let ret = f(ctx, this);
         (this, ret)
     }
 }
 
 impl AnyElement<TestElement, TestCtx> for TestElement {
-    fn replace_inner(this: Self::Mut<'_>, child: TestElement) -> Self::Mut<'_> {
+    fn replace_inner<'a>(
+        _ctx: &mut TestCtx,
+        this: Self::Mut<'a>,
+        child: TestElement,
+    ) -> Self::Mut<'a> {
         assert_eq!(child.operations.len(), 1);
         let Operation::Build(child_id) = child.operations.first().unwrap() else {
             panic!()

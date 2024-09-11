@@ -33,14 +33,15 @@ impl<W: Widget> SuperElement<Pod<W>, ViewCtx> for Pod<DynWidget> {
         })
     }
 
-    fn with_downcast_val<R>(
-        mut this: Self::Mut<'_>,
-        f: impl FnOnce(<Pod<W> as xilem_core::ViewElement>::Mut<'_>) -> R,
-    ) -> (Self::Mut<'_>, R) {
+    fn with_downcast_val<'a, R>(
+        ctx: &mut ViewCtx,
+        mut this: Self::Mut<'a>,
+        f: impl FnOnce(&mut ViewCtx, <Pod<W> as xilem_core::ViewElement>::Mut<'_>) -> R,
+    ) -> (Self::Mut<'a>, R) {
         let ret = {
             let mut child = this.ctx.get_mut(&mut this.widget.inner);
             let downcast = child.downcast();
-            f(downcast)
+            f(ctx, downcast)
         };
 
         (this, ret)
@@ -48,7 +49,11 @@ impl<W: Widget> SuperElement<Pod<W>, ViewCtx> for Pod<DynWidget> {
 }
 
 impl<W: Widget> AnyElement<Pod<W>, ViewCtx> for Pod<DynWidget> {
-    fn replace_inner(mut this: Self::Mut<'_>, child: Pod<W>) -> Self::Mut<'_> {
+    fn replace_inner<'a>(
+        _ctx: &mut ViewCtx,
+        mut this: Self::Mut<'a>,
+        child: Pod<W>,
+    ) -> Self::Mut<'a> {
         DynWidget::replace_inner(&mut this, child.inner.boxed());
         this
     }

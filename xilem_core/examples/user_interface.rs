@@ -105,16 +105,17 @@ impl<W: Widget> SuperElement<WidgetPod<W>, ViewCtx> for WidgetPod<Box<dyn Widget
             widget: Box::new(child.widget),
         }
     }
-    fn with_downcast_val<R>(
-        this: Self::Mut<'_>,
-        f: impl FnOnce(<WidgetPod<W> as ViewElement>::Mut<'_>) -> R,
-    ) -> (Self::Mut<'_>, R) {
+    fn with_downcast_val<'a, R>(
+        ctx: &mut ViewCtx,
+        this: Self::Mut<'a>,
+        f: impl FnOnce(&mut ViewCtx, <WidgetPod<W> as ViewElement>::Mut<'_>) -> R,
+    ) -> (Self::Mut<'a>, R) {
         let value = WidgetMut {
         value: this.value.as_mut_any().downcast_mut().expect(
             "this widget should have been created from a child widget of type `W` in `Self::upcast`",
         ),
     };
-        let ret = f(value);
+        let ret = f(ctx, value);
         (this, ret)
     }
 }

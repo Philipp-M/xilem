@@ -58,8 +58,12 @@ where
     /// You can safely use this methods in contexts where it is known that the
     ///
     /// If you need to return a value, see [`with_downcast_val`](SuperElement::with_downcast_val).
-    fn with_downcast(this: Mut<'_, Self>, f: impl FnOnce(Mut<'_, Child>)) -> Mut<'_, Self> {
-        let (this, ()) = Self::with_downcast_val(this, f);
+    fn with_downcast<'a>(
+        ctx: &mut Context,
+        this: Mut<'a, Self>,
+        f: impl FnOnce(&mut Context, Mut<'_, Child>),
+    ) -> Mut<'a, Self> {
+        let (this, ()) = Self::with_downcast_val(ctx, this, f);
         this
     }
     /// Perform a reborrowing downcast.
@@ -68,10 +72,11 @@ where
     /// `Self::upcast`.
     ///
     /// If you don't need to return a value, see [`with_downcast`](SuperElement::with_downcast).
-    fn with_downcast_val<R>(
-        this: Mut<'_, Self>,
-        f: impl FnOnce(Mut<'_, Child>) -> R,
-    ) -> (Self::Mut<'_>, R);
+    fn with_downcast_val<'a, R>(
+        ctx: &mut Context,
+        this: Mut<'a, Self>,
+        f: impl FnOnce(&mut Context, Mut<'_, Child>) -> R,
+    ) -> (Self::Mut<'a>, R);
 }
 
 /// An element which can be used for an [`AnyView`](crate::AnyView) containing `Child`.
@@ -80,7 +85,7 @@ where
     Child: ViewElement,
 {
     /// Replace the inner value of this reference entirely
-    fn replace_inner(this: Self::Mut<'_>, child: Child) -> Self::Mut<'_>;
+    fn replace_inner<'a>(ctx: &mut Context, this: Self::Mut<'a>, child: Child) -> Self::Mut<'a>;
 }
 
 /// Element type for views which don't impact the element tree.
@@ -100,10 +105,11 @@ impl<Context> SuperElement<NoElement, Context> for NoElement {
         child
     }
 
-    fn with_downcast_val<R>(
-        this: Mut<'_, Self>,
-        f: impl FnOnce(Mut<'_, NoElement>) -> R,
-    ) -> (Self::Mut<'_>, R) {
-        ((), f(this))
+    fn with_downcast_val<'a, R>(
+        ctx: &mut Context,
+        this: Mut<'a, Self>,
+        f: impl FnOnce(&mut Context, Mut<'a, NoElement>) -> R,
+    ) -> (Self::Mut<'a>, R) {
+        ((), f(ctx, this))
     }
 }

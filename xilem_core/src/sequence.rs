@@ -169,7 +169,7 @@ where
     ) {
         // Mutate the item we added in `seq_build`
         elements.mutate(|this_element| {
-            Element::with_downcast(this_element, |element| {
+            Element::with_downcast(ctx, this_element, |ctx, element| {
                 self.rebuild(prev, seq_state, ctx, element);
             });
         });
@@ -181,7 +181,7 @@ where
         elements: &mut impl ElementSplice<Element>,
     ) {
         elements.delete(|this_element| {
-            Element::with_downcast(this_element, |element| {
+            Element::with_downcast(ctx, this_element, |ctx, element| {
                 self.teardown(seq_state, ctx, element);
             });
         });

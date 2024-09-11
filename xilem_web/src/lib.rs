@@ -290,18 +290,23 @@ impl<N: DomNode> SuperElement<Pod<N>, ViewCtx> for AnyPod {
         Pod::into_any_pod(child.node, child.props)
     }
 
-    fn with_downcast_val<R>(
-        mut this: Self::Mut<'_>,
-        f: impl FnOnce(PodMut<'_, N>) -> R,
-    ) -> (Self::Mut<'_>, R) {
+    fn with_downcast_val<'a, R>(
+        ctx: &mut ViewCtx,
+        mut this: Self::Mut<'a>,
+        f: impl FnOnce(&mut ViewCtx, PodMut<'_, N>) -> R,
+    ) -> (Self::Mut<'a>, R) {
         let downcast = this.downcast();
-        let ret = f(downcast);
+        let ret = f(ctx, downcast);
         (this, ret)
     }
 }
 
 impl<N: DomNode> AnyElement<Pod<N>, ViewCtx> for AnyPod {
-    fn replace_inner(this: Self::Mut<'_>, mut child: Pod<N>) -> Self::Mut<'_> {
+    fn replace_inner<'a>(
+        _ctx: &mut ViewCtx,
+        this: Self::Mut<'a>,
+        mut child: Pod<N>,
+    ) -> Self::Mut<'a> {
         child.node.apply_props(&mut child.props);
         if let Some(parent) = this.parent {
             parent

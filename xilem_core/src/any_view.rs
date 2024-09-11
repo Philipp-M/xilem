@@ -97,7 +97,7 @@ where
     ) -> DynamicElement::Mut<'el> {
         if let Some(prev) = prev.as_any().downcast_ref() {
             // If we were previously of this type, then do a normal rebuild
-            DynamicElement::with_downcast(element, |element| {
+            DynamicElement::with_downcast(ctx, element, |ctx, element| {
                 let state = dyn_state
                     .inner_state
                     .downcast_mut()
@@ -120,7 +120,7 @@ where
             let (new_element, view_state) =
                 ctx.with_id(ViewId::new(dyn_state.generation), |ctx| self.build(ctx));
             dyn_state.inner_state = Box::new(view_state);
-            DynamicElement::replace_inner(element, new_element)
+            DynamicElement::replace_inner(ctx, element, new_element)
         }
     }
     fn dyn_teardown<'el>(
@@ -135,7 +135,7 @@ where
             .expect("build or rebuild always set the correct corresponding state type");
 
         // We only need to teardown the inner value - there's no other state to cleanup in this widget
-        DynamicElement::with_downcast(element, |element| {
+        DynamicElement::with_downcast(ctx, element, |ctx, element| {
             ctx.with_id(ViewId::new(dyn_state.generation), |ctx| {
                 self.teardown(state, ctx, element);
             });

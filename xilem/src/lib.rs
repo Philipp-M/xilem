@@ -192,12 +192,13 @@ impl<W: Widget> SuperElement<Pod<W>, ViewCtx> for Pod<Box<dyn Widget>> {
         ctx.boxed_pod(child)
     }
 
-    fn with_downcast_val<R>(
-        mut this: Self::Mut<'_>,
-        f: impl FnOnce(Mut<Pod<W>>) -> R,
-    ) -> (Self::Mut<'_>, R) {
+    fn with_downcast_val<'a, R>(
+        ctx: &mut ViewCtx,
+        mut this: Self::Mut<'a>,
+        f: impl FnOnce(&mut ViewCtx, Mut<Pod<W>>) -> R,
+    ) -> (Self::Mut<'a>, R) {
         let downcast = this.downcast();
-        let ret = f(downcast);
+        let ret = f(ctx, downcast);
         (this, ret)
     }
 }

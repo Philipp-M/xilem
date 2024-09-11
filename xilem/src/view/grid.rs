@@ -132,17 +132,18 @@ impl SuperElement<GridElement, ViewCtx> for GridElement {
         child
     }
 
-    fn with_downcast_val<R>(
-        mut this: Mut<Self>,
-        f: impl FnOnce(Mut<GridElement>) -> R,
-    ) -> (Self::Mut<'_>, R) {
+    fn with_downcast_val<'a, R>(
+        ctx: &mut ViewCtx,
+        mut this: Mut<'a, Self>,
+        f: impl FnOnce(&mut ViewCtx, Mut<GridElement>) -> R,
+    ) -> (Self::Mut<'a>, R) {
         let r = {
             let parent = this.parent.reborrow_mut();
             let reborrow = GridElementMut {
                 idx: this.idx,
                 parent,
             };
-            f(reborrow)
+            f(ctx, reborrow)
         };
         (this, r)
     }
@@ -158,15 +159,16 @@ impl<W: Widget> SuperElement<Pod<W>, ViewCtx> for GridElement {
         GridElement::Child(ctx.boxed_pod(child), GridParams::new(1, 1, 1, 1))
     }
 
-    fn with_downcast_val<R>(
-        mut this: Mut<Self>,
-        f: impl FnOnce(Mut<Pod<W>>) -> R,
-    ) -> (Mut<Self>, R) {
+    fn with_downcast_val<'a, R>(
+        ctx: &mut ViewCtx,
+        mut this: Mut<'a, Self>,
+        f: impl FnOnce(&mut ViewCtx, Mut<Pod<W>>) -> R,
+    ) -> (Mut<'a, Self>, R) {
         let ret = {
             let mut child = widget::Grid::child_mut(&mut this.parent, this.idx)
                 .expect("This is supposed to be a widget");
             let downcast = child.downcast();
-            f(downcast)
+            f(ctx, downcast)
         };
 
         (this, ret)

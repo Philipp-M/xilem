@@ -204,17 +204,18 @@ impl SuperElement<FlexElement, ViewCtx> for FlexElement {
         child
     }
 
-    fn with_downcast_val<R>(
-        mut this: Mut<Self>,
-        f: impl FnOnce(Mut<FlexElement>) -> R,
-    ) -> (Self::Mut<'_>, R) {
+    fn with_downcast_val<'a, R>(
+        ctx: &mut ViewCtx,
+        mut this: Mut<'a, Self>,
+        f: impl FnOnce(&mut ViewCtx, Mut<FlexElement>) -> R,
+    ) -> (Self::Mut<'a>, R) {
         let r = {
             let parent = this.parent.reborrow_mut();
             let reborrow = FlexElementMut {
                 idx: this.idx,
                 parent,
             };
-            f(reborrow)
+            f(ctx, reborrow)
         };
         (this, r)
     }
@@ -225,15 +226,16 @@ impl<W: Widget> SuperElement<Pod<W>, ViewCtx> for FlexElement {
         FlexElement::Child(ctx.boxed_pod(child), FlexParams::default())
     }
 
-    fn with_downcast_val<R>(
-        mut this: Mut<Self>,
-        f: impl FnOnce(Mut<Pod<W>>) -> R,
-    ) -> (Mut<Self>, R) {
+    fn with_downcast_val<'a, R>(
+        ctx: &mut ViewCtx,
+        mut this: Mut<'a, Self>,
+        f: impl FnOnce(&mut ViewCtx, Mut<Pod<W>>) -> R,
+    ) -> (Mut<'a, Self>, R) {
         let ret = {
             let mut child = widget::Flex::child_mut(&mut this.parent, this.idx)
                 .expect("This is supposed to be a widget");
             let downcast = child.downcast();
-            f(downcast)
+            f(ctx, downcast)
         };
 
         (this, ret)

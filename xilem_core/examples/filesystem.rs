@@ -108,17 +108,18 @@ impl SuperElement<Self, ViewCtx> for FsPath {
         child
     }
 
-    fn with_downcast_val<R>(
-        this: Self::Mut<'_>,
-        f: impl FnOnce(Mut<'_, Self>) -> R,
-    ) -> (Self::Mut<'_>, R) {
-        let ret = f(this);
+    fn with_downcast_val<'a, R>(
+        ctx: &mut ViewCtx,
+        this: Self::Mut<'a>,
+        f: impl FnOnce(&mut ViewCtx, Mut<'_, Self>) -> R,
+    ) -> (Self::Mut<'a>, R) {
+        let ret = f(ctx, this);
         (this, ret)
     }
 }
 
 impl AnyElement<Self, ViewCtx> for FsPath {
-    fn replace_inner(this: Self::Mut<'_>, child: Self) -> Self::Mut<'_> {
+    fn replace_inner<'a>(_ctx: &mut ViewCtx, this: Self::Mut<'a>, child: Self) -> Self::Mut<'a> {
         *this = child.0;
         this
     }

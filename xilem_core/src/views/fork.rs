@@ -112,21 +112,33 @@ where
 /// which uses a `NoElement` `ElementSplice`. But we don't think that sequence could be meaningful.
 struct NoElements;
 
-impl ElementSplice<NoElement> for NoElements {
-    fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<NoElement>) -> R) -> R {
+impl<Context> ElementSplice<NoElement, Context> for NoElements {
+    fn with_scratch<R>(
+        &mut self,
+        ctx: &mut Context,
+        f: impl FnOnce(&mut Context, &mut AppendVec<NoElement>) -> R,
+    ) -> R {
         let mut append_vec = AppendVec::default();
-        f(&mut append_vec)
+        f(ctx, &mut append_vec)
     }
 
-    fn insert(&mut self, _: NoElement) {}
+    fn insert(&mut self, _ctx: &mut Context, _: NoElement) {}
 
-    fn mutate<R>(&mut self, f: impl FnOnce(<NoElement as crate::ViewElement>::Mut<'_>) -> R) -> R {
-        f(())
+    fn mutate<R>(
+        &mut self,
+        ctx: &mut Context,
+        f: impl FnOnce(&mut Context, <NoElement as crate::ViewElement>::Mut<'_>) -> R,
+    ) -> R {
+        f(ctx, ())
     }
 
-    fn skip(&mut self, _: usize) {}
+    fn skip(&mut self, _ctx: &mut Context, _: usize) {}
 
-    fn delete<R>(&mut self, f: impl FnOnce(<NoElement as crate::ViewElement>::Mut<'_>) -> R) -> R {
-        f(())
+    fn delete<R>(
+        &mut self,
+        ctx: &mut Context,
+        f: impl FnOnce(&mut Context, <NoElement as crate::ViewElement>::Mut<'_>) -> R,
+    ) -> R {
+        f(ctx, ())
     }
 }

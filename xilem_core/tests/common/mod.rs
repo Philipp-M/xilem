@@ -269,27 +269,39 @@ pub(super) fn assert_action(result: MessageResult<Action>, id: u32) {
     assert_eq!(inner.id, id);
 }
 
-impl<'a> ElementSplice<TestElement> for SeqTracker<'a> {
-    fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<TestElement>) -> R) -> R {
-        let ret = f(self.scratch);
+impl<'a, Context> ElementSplice<TestElement, Context> for SeqTracker<'a> {
+    fn with_scratch<R>(
+        &mut self,
+        ctx: &mut Context,
+        f: impl FnOnce(&mut Context, &mut AppendVec<TestElement>) -> R,
+    ) -> R {
+        let ret = f(ctx, self.scratch);
         for element in self.scratch.drain() {
             self.inner.active.push(element);
         }
         ret
     }
-    fn insert(&mut self, element: TestElement) {
+    fn insert(&mut self, _ctx: &mut Context, element: TestElement) {
         self.inner.active.push(element);
     }
-    fn mutate<R>(&mut self, f: impl FnOnce(Mut<'_, TestElement>) -> R) -> R {
+    fn mutate<R>(
+        &mut self,
+        ctx: &mut Context,
+        f: impl FnOnce(&mut Context, Mut<'_, TestElement>) -> R,
+    ) -> R {
         let ix = self.ix;
         self.ix += 1;
-        f(&mut self.inner.active[ix])
+        f(ctx, &mut self.inner.active[ix])
     }
-    fn skip(&mut self, n: usize) {
+    fn skip(&mut self, _ctx: &mut Context, n: usize) {
         self.ix += n;
     }
-    fn delete<R>(&mut self, f: impl FnOnce(Mut<'_, TestElement>) -> R) -> R {
-        let ret = f(&mut self.inner.active[self.ix]);
+    fn delete<R>(
+        &mut self,
+        ctx: &mut Context,
+        f: impl FnOnce(&mut Context, Mut<'_, TestElement>) -> R,
+    ) -> R {
+        let ret = f(ctx, &mut self.inner.active[self.ix]);
         let val = self.inner.active.remove(self.ix);
         self.inner.deleted.push((self.ix, val));
         ret

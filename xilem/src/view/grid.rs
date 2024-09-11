@@ -184,9 +184,13 @@ impl<W: Widget> SuperElement<Pod<W>, ViewCtx> for GridElement {
 }
 
 // Used for building and rebuilding the ViewSequence
-impl ElementSplice<GridElement> for GridSplice<'_> {
-    fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<GridElement>) -> R) -> R {
-        let ret = f(&mut self.scratch);
+impl ElementSplice<GridElement, ViewCtx> for GridSplice<'_> {
+    fn with_scratch<R>(
+        &mut self,
+        ctx: &mut ViewCtx,
+        f: impl FnOnce(&mut ViewCtx, &mut AppendVec<GridElement>) -> R,
+    ) -> R {
+        let ret = f(ctx, &mut self.scratch);
         for element in self.scratch.drain() {
             match element {
                 GridElement::Child(child, params) => {
@@ -199,7 +203,7 @@ impl ElementSplice<GridElement> for GridSplice<'_> {
         ret
     }
 
-    fn insert(&mut self, element: GridElement) {
+    fn insert(&mut self, _ctx: &mut ViewCtx, element: GridElement) {
         match element {
             GridElement::Child(child, params) => {
                 self.element
@@ -209,27 +213,35 @@ impl ElementSplice<GridElement> for GridSplice<'_> {
         self.idx += 1;
     }
 
-    fn mutate<R>(&mut self, f: impl FnOnce(Mut<'_, GridElement>) -> R) -> R {
+    fn mutate<R>(
+        &mut self,
+        ctx: &mut ViewCtx,
+        f: impl FnOnce(&mut ViewCtx, Mut<'_, GridElement>) -> R,
+    ) -> R {
         let child = GridElementMut {
             parent: self.element.reborrow_mut(),
             idx: self.idx,
         };
-        let ret = f(child);
+        let ret = f(ctx, child);
         self.idx += 1;
         ret
     }
 
-    fn skip(&mut self, n: usize) {
+    fn skip(&mut self, _ctx: &mut ViewCtx, n: usize) {
         self.idx += n;
     }
 
-    fn delete<R>(&mut self, f: impl FnOnce(Mut<'_, GridElement>) -> R) -> R {
+    fn delete<R>(
+        &mut self,
+        ctx: &mut ViewCtx,
+        f: impl FnOnce(&mut ViewCtx, Mut<'_, GridElement>) -> R,
+    ) -> R {
         let ret = {
             let child = GridElementMut {
                 parent: self.element.reborrow_mut(),
                 idx: self.idx,
             };
-            f(child)
+            f(ctx, child)
         };
         self.element.remove_child(self.idx);
         ret

@@ -50,6 +50,11 @@ pub fn main() {
 }
 ```
 
+## Cargo Features
+
+* `hydration` (enabled by default) - Enable hydration, this will be necessary in the future for server side rendering and to use the `Templated` view
+* `static_viewtree` - Rusts type-checker currently has problems with deep hierarchies of composed types with associated trait bounds, which can lead to exponential compile-times. So by default there's a workaround with boxing and internally type-erasing every `impl DomFragment`. To enable a completely static viewtree, which leads to better performance and smaller binaries, one can enable this feature at the expense of potentially extremely long compile-times. This will eventually be defused with the next trait solver, and may be enabled by default in the future. In debug builds dynamic dispatch is used anyways, to enable fast iteration, as a completely static view-tree will likely always be slower in compilation than dynamic dispatch.
+
 ## Minimum supported Rust Version (MSRV)
 
 This version of Xilem Web has been verified to compile with **Rust 1.79** and later.

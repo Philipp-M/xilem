@@ -3,7 +3,7 @@
 
 //! Basic builder functions to create DOM elements, such as [`html::div`]
 
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
 use std::any::Any;
 use std::borrow::Cow;
 use std::marker::PhantomData;
@@ -18,10 +18,9 @@ use crate::{
     AnyPod, DomFragment, DomNode, DynMessage, Pod, ViewCtx, HTML_NS,
 };
 
-// sealed, because this should only cover `ViewSequences` with the blanket impl below
 /// This is basically a specialized dynamically dispatchable [`ViewSequence`], It's currently not able to change the underlying type unlike [`AnyDomView`](crate::AnyDomView), so it should not be used as `dyn DomViewSequence`.
-/// It's mostly a hack to avoid a completely static view tree, which unfortunately brings rustc (type-checking) down to its knees and results in long compile-times
-#[cfg(debug_assertions)]
+/// It's mostly a workaround to avoid a completely static view tree, which unfortunately brings rustc (type-checking) down to its knees and results in long compile-times
+#[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
 pub(crate) trait DomViewSequence<State, Action>: 'static {
     /// Get an [`Any`] reference to `self`.
     fn as_any(&self) -> &dyn Any;
@@ -60,7 +59,7 @@ pub(crate) trait DomViewSequence<State, Action>: 'static {
     ) -> MessageResult<Action, DynMessage>;
 }
 
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
 impl<State, Action, S> DomViewSequence<State, Action> for S
 where
     State: 'static,
@@ -337,9 +336,9 @@ pub(crate) fn teardown_element_with<Element, Children, ChildrenState, TeardownCh
 /// An element that can change its tag, it's useful for autonomous custom elements (i.e. web components)
 pub struct CustomElement<Children, State, Action> {
     name: Cow<'static, str>,
-    #[cfg(not(debug_assertions))]
+    #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
     children: Children,
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
     children: Box<dyn DomViewSequence<State, Action>>,
     #[allow(clippy::complexity)]
     phantom: PhantomData<fn() -> (State, Action, Children)>,
@@ -357,26 +356,26 @@ where
 {
     CustomElement {
         name: name.into(),
-        #[cfg(not(debug_assertions))]
+        #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
         children,
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
         children: Box::new(children) as Box<dyn DomViewSequence<State, Action>>,
         phantom: PhantomData,
     }
 }
 impl<State, Action, Children> ViewMarker for CustomElement<Children, State, Action> {}
 impl<
-        #[cfg(not(debug_assertions))] Children: DomFragment<State, Action> + 'static,
-        #[cfg(debug_assertions)] Children: 'static,
+        #[cfg(all(not(debug_assertions), feature = "static_viewtree"))] Children: DomFragment<State, Action> + 'static,
+        #[cfg(any(debug_assertions, not(feature = "static_viewtree")))] Children: 'static,
         State: 'static,
         Action: 'static,
     > View<State, Action, ViewCtx, DynMessage> for CustomElement<Children, State, Action>
 {
     type Element = Pod<web_sys::HtmlElement>;
 
-    #[cfg(not(debug_assertions))]
+    #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
     type ViewState = ElementState<Children::SeqState>;
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
     type ViewState = ElementState<Box<dyn Any>>;
 
     fn build(&self, ctx: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
@@ -385,9 +384,9 @@ impl<
             &self.name,
             HTML_NS,
             ctx,
-            #[cfg(debug_assertions)]
+            #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
             |ctx, elements, children| children.dyn_seq_build(ctx, elements),
-            #[cfg(not(debug_assertions))]
+            #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
             |ctx, elements, children| children.seq_build(ctx, elements),
         )
     }
@@ -421,11 +420,11 @@ impl<
             &mut element,
             element_state,
             ctx,
-            #[cfg(not(debug_assertions))]
+            #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
             |children, prev_children, state, ctx, splice| {
                 children.seq_rebuild(prev_children, state, ctx, splice);
             },
-            #[cfg(debug_assertions)]
+            #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
             |children, prev_children, state, ctx, splice| {
                 children.dyn_seq_rebuild(&**prev_children, state, ctx, splice);
             },
@@ -444,9 +443,9 @@ impl<
             element,
             element_state,
             ctx,
-            #[cfg(not(debug_assertions))]
+            #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
             |children, state, ctx, splice| children.seq_teardown(state, ctx, splice),
-            #[cfg(debug_assertions)]
+            #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
             |children, state, ctx, splice| children.dyn_seq_teardown(state, ctx, splice),
         );
     }
@@ -458,12 +457,12 @@ impl<
         message: DynMessage,
         app_state: &mut State,
     ) -> MessageResult<Action, DynMessage> {
-        #[cfg(not(debug_assertions))]
+        #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
         {
             self.children
                 .seq_message(&mut view_state.seq_state, id_path, message, app_state)
         }
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
         {
             self.children
                 .dyn_seq_message(&mut view_state.seq_state, id_path, message, app_state)
@@ -477,9 +476,9 @@ macro_rules! define_element {
     };
     ($ns:expr, ($ty_name:ident, $name:ident, $dom_interface:ident, $tag_name:expr)) => {
         pub struct $ty_name<Children, State, Action> {
-            #[cfg(not(debug_assertions))]
+            #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
             children: Children,
-            #[cfg(debug_assertions)]
+            #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
             children: Box<dyn DomViewSequence<State, Action>>,
             phantom: PhantomData<fn() -> (State, Action, Children)>,
         }
@@ -491,9 +490,9 @@ macro_rules! define_element {
             children: Children,
         ) -> $ty_name<Children, State, Action> {
             $ty_name {
-                #[cfg(not(debug_assertions))]
+                #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
                 children,
-                #[cfg(debug_assertions)]
+                #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
                 children: Box::new(children) as Box<dyn DomViewSequence<State, Action>>,
                 phantom: PhantomData,
             }
@@ -501,17 +500,17 @@ macro_rules! define_element {
 
         impl<Children, State, Action> ViewMarker for $ty_name<Children, State, Action> {}
         impl<
-                #[cfg(not(debug_assertions))] Children: DomFragment<State, Action> + 'static,
-                #[cfg(debug_assertions)] Children: 'static,
+                #[cfg(all(not(debug_assertions), feature = "static_viewtree"))] Children: DomFragment<State, Action> + 'static,
+                #[cfg(any(debug_assertions, not(feature = "static_viewtree")))] Children: 'static,
                 State: 'static,
                 Action: 'static,
             > View<State, Action, ViewCtx, DynMessage> for $ty_name<Children, State, Action>
         {
             type Element = Pod<web_sys::$dom_interface>;
 
-            #[cfg(not(debug_assertions))]
+            #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
             type ViewState = ElementState<Children::SeqState>;
-            #[cfg(debug_assertions)]
+            #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
             type ViewState = ElementState<Box<dyn std::any::Any>>;
 
             fn build(&self, ctx: &mut ViewCtx) -> (Self::Element, Self::ViewState) {
@@ -520,10 +519,10 @@ macro_rules! define_element {
                     $tag_name,
                     $ns,
                     ctx,
-                    #[cfg(debug_assertions)]
-                    |ctx, elements, children| children.dyn_seq_build(ctx, elements),
-                    #[cfg(not(debug_assertions))]
+                    #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
                     |ctx, elements, children| children.seq_build(ctx, elements),
+                    #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
+                    |ctx, elements, children| children.dyn_seq_build(ctx, elements),
                 )
             }
 
@@ -540,11 +539,11 @@ macro_rules! define_element {
                     &mut element,
                     element_state,
                     ctx,
-                    #[cfg(not(debug_assertions))]
+                    #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
                     |children, prev_children, state, ctx, splice| {
                         children.seq_rebuild(prev_children, state, ctx, splice);
                     },
-                    #[cfg(debug_assertions)]
+                    #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
                     |children, prev_children, state, ctx, splice| {
                         children.dyn_seq_rebuild(&**prev_children, state, ctx, splice);
                     },
@@ -563,9 +562,9 @@ macro_rules! define_element {
                     element,
                     element_state,
                     ctx,
-                    #[cfg(not(debug_assertions))]
+                    #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
                     |children, state, ctx, splice| children.seq_teardown(state, ctx, splice),
-                    #[cfg(debug_assertions)]
+                    #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
                     |children, state, ctx, splice| children.dyn_seq_teardown(state, ctx, splice),
                 );
             }
@@ -577,7 +576,7 @@ macro_rules! define_element {
                 message: DynMessage,
                 app_state: &mut State,
             ) -> MessageResult<Action, DynMessage> {
-                #[cfg(not(debug_assertions))]
+                #[cfg(all(not(debug_assertions), feature = "static_viewtree"))]
                 {
                     self.children.seq_message(
                         &mut view_state.seq_state,
@@ -586,7 +585,7 @@ macro_rules! define_element {
                         app_state,
                     )
                 }
-                #[cfg(debug_assertions)]
+                #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
                 {
                     self.children.dyn_seq_message(
                         &mut view_state.seq_state,
@@ -604,7 +603,7 @@ macro_rules! define_elements {
     ($ns:ident, $($element_def:tt,)*) => {
         use std::marker::PhantomData;
         use super::{build_element_with, rebuild_element_with, teardown_element_with, ElementState};
-        #[cfg(debug_assertions)]
+        #[cfg(any(debug_assertions, not(feature = "static_viewtree")))]
         use super::DomViewSequence;
 
         use crate::{

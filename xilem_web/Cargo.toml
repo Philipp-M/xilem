@@ -41,6 +41,7 @@ features = [
   "HtmlElement",
   "Node",
   "NodeList",
+  "Range",
   "ResizeObserver",
   "ResizeObserverEntry",
   "DomRectReadOnly",

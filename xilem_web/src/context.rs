@@ -6,11 +6,12 @@ use wasm_bindgen_futures::spawn_local;
 use crate::vecmap::VecMap;
 use std::any::Any;
 use std::any::TypeId;
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     app::{AppMessage, AppRunner},
     core::{ViewId, ViewPathTracker},
+    tree_mutations::TreeMutations,
     Message,
 };
 
@@ -58,6 +59,7 @@ pub struct ViewCtx {
     /// A stack containing modifier count size-hints for each element context, mostly to avoid unnecessary allocations.
     modifier_size_hints: Vec<VecMap<TypeId, usize>>,
     modifier_size_hint_stack_idx: usize,
+    pub(crate) tree_mutations: Rc<RefCell<TreeMutations>>,
 }
 
 impl Default for ViewCtx {
@@ -72,6 +74,7 @@ impl Default for ViewCtx {
             // One element for the root `DomFragment`. will be extended with `Self::push_size_hints`
             modifier_size_hints: vec![VecMap::default()],
             modifier_size_hint_stack_idx: 0,
+            tree_mutations: Default::default(),
         }
     }
 }
@@ -111,9 +114,11 @@ impl ViewCtx {
             templates: std::mem::take(&mut self.templates),
             modifier_size_hints: std::mem::take(&mut self.modifier_size_hints),
             modifier_size_hint_stack_idx: self.modifier_size_hint_stack_idx,
+            tree_mutations: std::mem::take(&mut self.tree_mutations),
         };
         let (ctx, retval) = f(temporary_owned_ctx);
         self.id_path = ctx.id_path;
+        self.tree_mutations = ctx.tree_mutations;
         self.hydration_node_stack = ctx.hydration_node_stack;
         self.is_hydrating = ctx.is_hydrating;
         self.templates = ctx.templates;

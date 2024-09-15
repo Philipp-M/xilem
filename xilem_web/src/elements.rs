@@ -4,15 +4,16 @@
 //! Basic builder functions to create DOM elements, such as [`html::div`]
 
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::marker::PhantomData;
 use std::{any::Any, rc::Rc};
 use wasm_bindgen::{JsCast, UnwrapThrowExt};
 
+use crate::tree_mutations::TreeMutations;
 use crate::{
     core::{AppendVec, ElementSplice, MessageResult, Mut, View, ViewId, ViewMarker},
     document,
     modifiers::Children,
-    vec_splice::VecSplice,
     AnyPod, DomFragment, DomNode, DynMessage, FromWithContext, Pod, ViewCtx, HTML_NS,
 };
 
@@ -115,95 +116,99 @@ where
 // and apply them at once, when this splice is being `Drop`ped, needs some investigation, whether that's better than in place mutations
 // TODO maybe we can save some allocations/memory (this needs two extra `Vec`s)
 /// This is an [`ElementSplice`] implementation to manage the children of a DOM node in place, it's currently used for updating view sequences
-pub struct DomChildrenSplice<'a, 'b, 'c, 'd> {
-    scratch: &'a mut AppendVec<AnyPod>,
-    children: VecSplice<'b, 'c, AnyPod>,
+pub struct DomChildrenSplice<'a, 'b> {
+    children: &'a mut Vec<AnyPod>,
     ix: usize,
-    parent: &'d web_sys::Node,
-    fragment: Rc<web_sys::DocumentFragment>,
-    parent_was_removed: bool,
-    in_hydration: bool,
+    parent: &'b web_sys::Node,
+    was_deleted: bool,
+    tree_mutations: Rc<RefCell<TreeMutations>>,
 }
 
-impl<'a, 'b, 'c, 'd> DomChildrenSplice<'a, 'b, 'c, 'd> {
-    pub fn new(
-        scratch: &'a mut AppendVec<AnyPod>,
-        children: &'b mut Vec<AnyPod>,
-        vec_splice_scratch: &'c mut Vec<AnyPod>,
-        parent: &'d web_sys::Node,
-        fragment: Rc<web_sys::DocumentFragment>,
-        parent_was_deleted: bool,
-        hydrate: bool,
-    ) -> Self {
-        Self {
-            scratch,
-            children: VecSplice::new(children, vec_splice_scratch),
-            ix: 0,
-            parent,
-            fragment,
-            parent_was_removed: parent_was_deleted,
-            in_hydration: hydrate,
+impl Drop for DomChildrenSplice<'_, '_> {
+    fn drop(&mut self) {
+        if !self.was_deleted {
+            self.tree_mutations
+                .borrow_mut()
+                .pop_and_apply_mutations(self.parent, self.children);
         }
     }
 }
 
-impl ElementSplice<AnyPod> for DomChildrenSplice<'_, '_, '_, '_> {
-    fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<AnyPod>) -> R) -> R {
-        let ret = f(self.scratch);
-        if !self.scratch.is_empty() {
-            let add_dom_children_to_parent = !self.in_hydration;
-
-            for element in self.scratch.drain() {
-                if add_dom_children_to_parent {
-                    self.fragment
-                        .append_child(element.node.as_ref())
-                        .unwrap_throw();
-                }
-                self.children.insert(element);
-                self.ix += 1;
-            }
-            if add_dom_children_to_parent {
-                self.parent
-                    .insert_before(
-                        self.fragment.as_ref(),
-                        self.children.next_mut().map(|p| p.node.as_ref()),
-                    )
-                    .unwrap_throw();
-            }
+impl<'a, 'b> DomChildrenSplice<'a, 'b> {
+    pub fn new(
+        children: &'a mut Vec<AnyPod>,
+        parent: &'b web_sys::Node,
+        tree_mutations: Rc<RefCell<TreeMutations>>,
+        was_deleted: bool,
+        hydrate: bool,
+    ) -> Self {
+        if !was_deleted {
+            tree_mutations.borrow_mut().push(hydrate);
         }
+        Self {
+            children,
+            ix: 0,
+            parent,
+            was_deleted,
+            tree_mutations,
+        }
+    }
+}
+
+impl ElementSplice<AnyPod> for DomChildrenSplice<'_, '_> {
+    fn with_scratch<R>(&mut self, f: impl FnOnce(&mut AppendVec<AnyPod>) -> R) -> R {
+        let append_scratch = self.tree_mutations.borrow_mut().get_append_scratch();
+        let ret = {
+            let scratch = &mut *append_scratch.borrow_mut();
+            let ret = f(scratch);
+
+            let tree_mutations = &mut self.tree_mutations.borrow_mut();
+            let drain = scratch.drain();
+
+            if !self.was_deleted {
+                for element in drain {
+                    tree_mutations.insert(element);
+                    self.ix += 1;
+                }
+            }
+            ret
+        };
+        self.tree_mutations
+            .borrow_mut()
+            .return_append_scratch(append_scratch);
+
         ret
     }
 
     fn insert(&mut self, element: AnyPod) {
-        self.parent
-            .insert_before(
-                element.node.as_ref(),
-                self.children.next_mut().map(|p| p.node.as_ref()),
-            )
-            .unwrap_throw();
+        self.tree_mutations.borrow_mut().insert(element);
         self.ix += 1;
-        self.children.insert(element);
     }
 
-    fn mutate<R>(&mut self, f: impl FnOnce(Mut<AnyPod>) -> R) -> R {
-        let child = self.children.mutate();
-        let ret = f(child.as_mut(self.parent, self.parent_was_removed));
+    fn mutate<R>(&mut self, f: impl FnOnce(Mut<'_, AnyPod>) -> R) -> R {
+        if !self.was_deleted {
+            self.tree_mutations.borrow_mut().skip(1);
+        }
+        let child = &mut self.children[self.ix];
+        let ret = f(child.as_mut(self.parent, self.was_deleted));
         self.ix += 1;
         ret
     }
 
     fn skip(&mut self, n: usize) {
-        self.children.skip(n);
+        if !self.was_deleted {
+            self.tree_mutations.borrow_mut().skip(n as u32);
+        }
         self.ix += n;
     }
 
-    fn delete<R>(&mut self, f: impl FnOnce(Mut<AnyPod>) -> R) -> R {
-        let mut child = self.children.delete_next();
-        let child = child.as_mut(self.parent, true);
-        // This is an optimization to avoid too much DOM traffic, otherwise first the children would be deleted from that node in an up-traversal
-        if !self.parent_was_removed {
-            self.parent.remove_child(child.as_ref()).ok().unwrap_throw();
+    fn delete<R>(&mut self, f: impl FnOnce(Mut<'_, AnyPod>) -> R) -> R {
+        if !self.was_deleted {
+            self.tree_mutations.borrow_mut().delete(1);
         }
+        let child = &mut self.children[self.ix];
+        let child = child.as_mut(self.parent, true);
+        self.ix += 1;
         f(child)
     }
 }
@@ -211,17 +216,11 @@ impl ElementSplice<AnyPod> for DomChildrenSplice<'_, '_, '_, '_> {
 /// Used in all the basic DOM elements as [`View::ViewState`]
 pub struct ElementState {
     seq_state: Box<dyn Any>,
-    append_scratch: AppendVec<AnyPod>,
-    vec_splice_scratch: Vec<AnyPod>,
 }
 
 impl ElementState {
     pub fn new(seq_state: Box<dyn Any>) -> Self {
-        Self {
-            seq_state,
-            append_scratch: Default::default(),
-            vec_splice_scratch: Default::default(),
-        }
+        Self { seq_state }
     }
 }
 
@@ -265,11 +264,9 @@ pub(crate) fn rebuild_element<State, Action, Element>(
     Element: DomNode<Props: AsMut<Children>>,
 {
     let mut dom_children_splice = DomChildrenSplice::new(
-        &mut state.append_scratch,
         element.props.as_mut(),
-        &mut state.vec_splice_scratch,
         element.node.as_ref(),
-        ctx.fragment.clone(),
+        Rc::clone(&ctx.tree_mutations),
         element.was_removed,
         ctx.is_hydrating(),
     );
@@ -293,11 +290,9 @@ pub(crate) fn teardown_element<State, Action, Element>(
     Element: DomNode<Props: AsMut<Children>>,
 {
     let mut dom_children_splice = DomChildrenSplice::new(
-        &mut state.append_scratch,
         element.props.as_mut(),
-        &mut state.vec_splice_scratch,
         element.node.as_ref(),
-        ctx.fragment.clone(),
+        Rc::clone(&ctx.tree_mutations),
         true,
         ctx.is_hydrating(),
     );

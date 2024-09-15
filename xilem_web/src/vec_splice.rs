@@ -35,6 +35,18 @@ impl<'v, 's, T> VecSplice<'v, 's, T> {
             .expect("This is a bug, please report an issue about `ElementSplice::delete`")
     }
 
+    pub fn delete(&mut self, n: usize) {
+        // TODO this is very brittle, i.e. when `self.ix != self.v.len() - 1`
+        if self.v.len() < self.ix + n {
+            self.scratch.truncate(self.scratch.len() - n);
+        } else {
+            if self.v.len() > self.ix + n {
+                self.scratch.extend(self.v.splice(self.ix + n.., []).rev());
+            }
+            self.v.truncate(self.ix);
+        }
+    }
+
     pub fn insert(&mut self, value: T) {
         self.clear_tail();
         self.v.push(value);

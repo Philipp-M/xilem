@@ -135,11 +135,9 @@ where
 
             let new_fragment = (inner.app_logic)(&mut inner.data);
             let mut dom_children_splice = DomChildrenSplice::new(
-                &mut inner.fragment_append_scratch,
                 &mut inner.elements,
-                &mut inner.vec_splice_scratch,
                 &inner.root,
-                inner.ctx.fragment.clone(),
+                Rc::clone(&inner.ctx.tree_mutations),
                 false,
                 false,
             );

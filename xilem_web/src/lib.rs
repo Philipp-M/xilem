@@ -72,6 +72,7 @@ mod templated;
 mod text;
 mod vec_splice;
 mod vecmap;
+mod tree_mutations;
 
 pub mod concurrent;
 pub mod diff;

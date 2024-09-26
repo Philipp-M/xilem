@@ -32,6 +32,7 @@ impl<W: Widget> Drop for WidgetMut<'_, W> {
     fn drop(&mut self) {
         // If this `WidgetMut` is a reborrow, a parent non-reborrow `WidgetMut`
         // still exists which will do the merge-up in `Drop`.
+        self.widget.clear_dirty_flags();
         if let Some(parent_widget_state) = self.ctx.parent_widget_state.take() {
             parent_widget_state.merge_up(self.ctx.widget_state);
         }

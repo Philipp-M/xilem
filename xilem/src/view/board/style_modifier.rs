@@ -141,7 +141,7 @@ where
         element: Mut<'el, Self::Element>,
     ) -> Mut<'el, Self::Element> {
         let mut element = self.child.rebuild(&prev.child, child_state, ctx, element);
-        if self.transform != prev.transform {
+        if self.transform != prev.transform || element.transform_dirty() {
             element.set_transform(self.transform);
             ctx.mark_changed();
         }

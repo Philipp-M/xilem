@@ -218,6 +218,8 @@ pub trait Widget: AsAny {
     fn as_mut_any(&mut self) -> &mut dyn Any {
         self.as_mut_dyn_any()
     }
+
+    fn clear_dirty_flags(&mut self) {}
 }
 
 /// Marker trait for Widgets whose parents can get a raw mutable reference to them.
@@ -360,5 +362,9 @@ impl Widget for Box<dyn Widget> {
 
     fn as_mut_any(&mut self) -> &mut dyn Any {
         self.deref_mut().as_mut_any()
+    }
+
+    fn clear_dirty_flags(&mut self) {
+        self.deref_mut().clear_dirty_flags();
     }
 }

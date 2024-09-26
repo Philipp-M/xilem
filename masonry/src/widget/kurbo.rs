@@ -25,6 +25,8 @@ pub struct KurboShape {
     transform: Affine,
     fill: Option<FillParams>,
     stroke: Option<StrokeParams>,
+
+    transform_dirty: bool,
 }
 
 struct FillParams {
@@ -65,6 +67,7 @@ impl KurboShape {
             transform: Default::default(),
             fill: None,
             stroke: None,
+            transform_dirty: true,
         }
     }
 
@@ -74,6 +77,11 @@ impl KurboShape {
 
     pub fn set_transform(&mut self, transform: Affine) {
         self.transform = transform;
+        self.transform_dirty = true;
+    }
+
+    pub fn transform_dirty(&self) -> bool {
+        self.transform_dirty
     }
 
     pub fn set_fill_mode(&mut self, fill_mode: Fill) {
@@ -116,7 +124,12 @@ impl<'a> WidgetMut<'a, KurboShape> {
 
     pub fn set_transform(&mut self, transform: Affine) {
         self.widget.transform = transform;
+        self.widget.transform_dirty = true;
         self.ctx.request_paint();
+    }
+
+    pub fn transform_dirty(&self) -> bool {
+        self.widget.transform_dirty
     }
 
     pub fn set_fill_mode(&mut self, fill_mode: Fill) {
@@ -212,6 +225,10 @@ impl Widget for KurboShape {
 
     fn make_trace_span(&self) -> Span {
         trace_span!("KurboShape")
+    }
+
+    fn clear_dirty_flags(&mut self) {
+        self.transform_dirty = false;
     }
 }
 

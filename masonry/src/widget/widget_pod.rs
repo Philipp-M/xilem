@@ -286,10 +286,11 @@ impl<W: Widget> WidgetPod<W> {
             _ => (),
         }
 
-        let widget = match std::mem::replace(&mut self.inner, WidgetPodInner::Inserted) {
+        let mut widget = match std::mem::replace(&mut self.inner, WidgetPodInner::Inserted) {
             WidgetPodInner::Created(widget) => widget,
             WidgetPodInner::Inserted => unreachable!(),
         };
+        widget.clear_dirty_flags();
         let id = self.id().to_raw();
 
         let _span = widget.make_trace_span().entered();

@@ -48,6 +48,7 @@ mod vec_splice;
 mod vecmap;
 
 pub mod concurrent;
+pub mod diff;
 pub mod elements;
 pub mod interfaces;
 pub mod svg;
@@ -57,16 +58,16 @@ pub use self::{
         after_build, after_rebuild, before_teardown, AfterBuild, AfterRebuild, BeforeTeardown,
     },
     app::App,
-    attribute::{Attr, Attributes, ElementWithAttributes, WithAttributes},
+    attribute::{Attr, AttributeModifier, Attributes},
     attribute_value::{AttributeValue, IntoAttributeValue},
-    class::{AsClassIter, Class, Classes, ElementWithClasses, WithClasses},
+    class::{Class, ClassIter, ClassModifier, Classes},
     context::{MessageThunk, ViewCtx},
     dom_helpers::{document, document_body, get_element_by_id, input_event_target_value},
     element_props::ElementProps,
     message::{DynMessage, Message},
     optional_action::{Action, OptionalAction},
     pointer::{Pointer, PointerDetails, PointerMsg},
-    style::{style, ElementWithStyle, IntoStyles, Style, Styles, WithStyle},
+    style::{style, Style, StyleIter, StyleModifier, Styles},
 };
 
 #[cfg(feature = "hydration")]

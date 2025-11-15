@@ -14,9 +14,9 @@ use xilem_core::ViewPathTracker;
 /// # Example
 /// ```
 /// use xilem::view::{flex_row, radio_button, radio_group};
-/// # use xilem::WidgetView
+/// # use xilem::WidgetView;
 ///
-/// #[derive(Debug, PartialEq, Eq)]
+/// #[derive(PartialEq, Clone)]
 /// enum Fruit {
 ///     Banana,
 ///     Apple,
@@ -27,18 +27,16 @@ use xilem_core::ViewPathTracker;
 ///     fruit: Fruit,
 /// }
 ///
-/// // ...
-///
-/// #fn view() -> impl WidgetView<State> {
+/// # fn view() -> impl WidgetView<State> {
 /// radio_group(
-///    |state: &mut TaskList| &mut state.filter,
+///    |state: &mut State| &mut state.fruit,
 ///    flex_row((
 ///        radio_button("Banana", Fruit::Banana),
 ///        radio_button("Apple", Fruit::Apple),
 ///        radio_button("Lime", Fruit::Lime),
 ///     ))
 /// )
-/// #}
+/// # }
 /// ```
 pub fn radio_group<State, Action, V, Value>(
     access_value: AccessV<State, Value>,
